@@ -535,6 +535,18 @@ void Options::setArchitecture(cpu_type_t type, cpu_subtype_t subtype)
 					if ( !fMakeCompressedDyldInfo && minOS(ld::mac10_6, ld::iOS_3_1) && !fMakeCompressedDyldInfoForceOff )
 						fMakeCompressedDyldInfo = true;
 					break;
+				case CPU_TYPE_POWERPC:
+				case CPU_TYPE_POWERPC64:
+					if ( (fMacVersionMin == ld::macVersionUnset) && (fIOSVersionMin == ld::iOSVersionUnset) && (fOutputKind != Options::kObjectFile) ) {
+				#ifdef DEFAULT_MACOSX_MIN_VERSION
+						warning("-macosx_version_min not specified, assuming " DEFAULT_MACOSX_MIN_VERSION);
+						setMacOSXVersionMin(DEFAULT_MACOSX_MIN_VERSION);
+				#else
+						warning("-macosx_version_min not specified, assuming 10.5");
+						fMacVersionMin = ld::mac10_5;
+				#endif
+					}
+					break;
 				case CPU_TYPE_ARM:
 					if ( (fMacVersionMin == ld::macVersionUnset) && (fIOSVersionMin == ld::iOSVersionUnset) && (fOutputKind != Options::kObjectFile) ) {
 				#if defined(DEFAULT_IPHONEOS_MIN_VERSION)
@@ -3186,7 +3198,6 @@ void Options::reconfigureDefaults()
 			switch ( fArchitecture ) {
 				case CPU_TYPE_I386:
 				case CPU_TYPE_X86_64:
-				case CPU_TYPE_POWERPC:
 					if ( (fOutputKind != Options::kObjectFile) && (fOutputKind != Options::kPreload) ) {
 			#ifdef DEFAULT_MACOSX_MIN_VERSION
 						warning("-macosx_version_min not specified, assuming " DEFAULT_MACOSX_MIN_VERSION);
@@ -3195,6 +3206,18 @@ void Options::reconfigureDefaults()
 						warning("-macosx_version_min not specified, assuming 10.6");
 						fMacVersionMin = ld::mac10_6;
 			#endif		
+					}
+					break;
+				case CPU_TYPE_POWERPC:
+				case CPU_TYPE_POWERPC64:
+					if ( (fOutputKind != Options::kObjectFile) && (fOutputKind != Options::kPreload) ) {
+			#ifdef DEFAULT_MACOSX_MIN_VERSION
+						warning("-macosx_version_min not specificed, assuming " DEFAULT_MACOSX_MIN_VERSION);
+						setMacOSXVersionMin(DEFAULT_MACOSX_MIN_VERSION);
+			#else
+						warning("-macosx_version_min not specificed, assuming 10.5");
+						fMacVersionMin = ld::mac10_5;
+			#endif
 					}
 					break;
 				case CPU_TYPE_ARM:
@@ -3227,10 +3250,21 @@ void Options::reconfigureDefaults()
 				fMacVersionMin = ld::mac10_4;
 			}
 			break;
+		case CPU_TYPE_POWERPC:
+			/* no OS X for PPC later than 10.5 */
+			if ( fMacVersionMin > ld::mac10_5 ) {
+				//warning("-macosx_version_min should be 10.5 or earlier for ppc");
+				fMacVersionMin = ld::mac10_5;
+			}
+			break;
 		case CPU_TYPE_POWERPC64:
 			if ( fMacVersionMin < ld::mac10_4 ) {
 				//warning("-macosx_version_min should be 10.4 or later for ppc64");
 				fMacVersionMin = ld::mac10_4;
+			}
+			if ( fMacVersionMin > ld::mac10_5 ) {
+				//warning("-macosx_version_min should be 10.5 or earlier for ppc64");
+				fMacVersionMin = ld::mac10_5;
 			}
 			break;
 		case CPU_TYPE_X86_64:
