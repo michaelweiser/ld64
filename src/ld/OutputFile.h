@@ -235,6 +235,10 @@ private:
 																							const ld::Fixup* fixup);
 																							
 																							
+	void	rangeCheckPPCBranch24(int64_t delta, ld::Internal& state, const ld::Atom* atom,
+		const ld::Fixup* fixup);
+	void	rangeCheckPPCBranch14(int64_t delta, ld::Internal& state, const ld::Atom* atom,
+		const ld::Fixup* fixup);
 	uint64_t					sectionOffsetOf(const ld::Internal& state, const ld::Fixup* fixup);
 	uint64_t					tlvTemplateOffsetOf(const ld::Internal& state, const ld::Fixup* fixup);
 	void						dumpAtomsBySection(ld::Internal& state, bool);
