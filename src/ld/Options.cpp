@@ -1656,9 +1656,15 @@ void Options::parseOrderFile(const char* path, bool cstring)
 				}
 				// if there is an architecture prefix, only use this symbol it if matches current arch
 				if ( strncmp(symbolStart, "ppc:", 4) == 0 ) {
+					if ( fArchitecture == CPU_TYPE_POWERPC )
+						symbolStart = &symbolStart[4];
+					else
 					symbolStart = NULL;
 				}
 				else if ( strncmp(symbolStart, "ppc64:", 6) == 0 ) {
+					if ( fArchitecture == CPU_TYPE_POWERPC64 )
+						symbolStart = &symbolStart[6];
+					else
 					symbolStart = NULL;
 				}
 				else if ( strncmp(symbolStart, "i386:", 5) == 0 ) {
@@ -3559,6 +3565,7 @@ void Options::reconfigureDefaults()
 			switch ( fArchitecture ) {
 				case CPU_TYPE_I386:
 				case CPU_TYPE_X86_64:
+				case CPU_TYPE_POWERPC:
 					if ( (fOutputKind != Options::kObjectFile) && (fOutputKind != Options::kPreload) ) {
 			#ifdef DEFAULT_MACOSX_MIN_VERSION
 						warning("-macosx_version_min not specified, assuming " DEFAULT_MACOSX_MIN_VERSION);
@@ -3593,6 +3600,12 @@ void Options::reconfigureDefaults()
 		case CPU_TYPE_I386:
 			if ( (fMacVersionMin < ld::mac10_4) && (fIOSVersionMin == ld::iOSVersionUnset) ) {
 				//warning("-macosx_version_min should be 10.4 or later for i386");
+				fMacVersionMin = ld::mac10_4;
+			}
+			break;
+		case CPU_TYPE_POWERPC64:
+			if ( fMacVersionMin < ld::mac10_4 ) {
+				//warning("-macosx_version_min should be 10.4 or later for ppc64");
 				fMacVersionMin = ld::mac10_4;
 			}
 			break;
@@ -3667,6 +3680,7 @@ void Options::reconfigureDefaults()
 					break;
 				}
 				// else use object file
+			case CPU_TYPE_POWERPC:
 			case CPU_TYPE_I386:
 				// use .o files
 				fOutputKind = kObjectFile;
@@ -3709,8 +3723,9 @@ void Options::reconfigureDefaults()
 	
 	// split segs only allowed for dylibs
 	if ( fSplitSegs ) {
-        // split seg only supported for i386, and arm.
+        // split seg only supported for ppc, i386, and arm.
         switch ( fArchitecture ) {
+            case CPU_TYPE_POWERPC:
             case CPU_TYPE_I386:
                 if ( fOutputKind != Options::kDynamicLibrary )
                     fSplitSegs = false;
@@ -3737,9 +3752,11 @@ void Options::reconfigureDefaults()
 
 	// set too-large size
 	switch ( fArchitecture ) {
+		case CPU_TYPE_POWERPC:
 		case CPU_TYPE_I386:
 			fMaxAddress = 0xFFFFFFFF;
 			break;
+		case CPU_TYPE_POWERPC64:
 		case CPU_TYPE_X86_64:
 			break;
 		case CPU_TYPE_ARM:
@@ -3773,6 +3790,7 @@ void Options::reconfigureDefaults()
 	// disable prebinding depending on arch and min OS version
 	if ( fPrebind ) {
 		switch ( fArchitecture ) {
+			case CPU_TYPE_POWERPC:
 			case CPU_TYPE_I386:
 				if ( fMacVersionMin == ld::mac10_4 ) {
 					// in 10.4 only split seg dylibs are prebound
@@ -3806,6 +3824,7 @@ void Options::reconfigureDefaults()
 					}
 				}
 				break;
+			case CPU_TYPE_POWERPC64:
 			case CPU_TYPE_X86_64:
 				fPrebind = false;
 				break;
@@ -3852,6 +3871,10 @@ void Options::reconfigureDefaults()
 			case CPU_TYPE_I386:
 				if ( fIOSVersionMin != ld::iOSVersionUnset ) // simulator never needs modules
 					break;
+			case CPU_TYPE_POWERPC:	// 10.3 and earlier dyld requires a module table
+				if ( fMacVersionMin <= ld::mac10_5 )
+					fNeedsModuleTable = true;
+				break;
 			case CPU_TYPE_ARM:
 				if ( fPrebind )
 					fNeedsModuleTable = true; // redo_prebinding requires a module table
@@ -3888,6 +3911,8 @@ void Options::reconfigureDefaults()
 					break;
 			}
 			break;
+		case CPU_TYPE_POWERPC:
+		case CPU_TYPE_POWERPC64:
 		case CPU_TYPE_ARM:
 			fAddCompactUnwindEncoding = false;
 			fRemoveDwarfUnwindIfCompactExists = false;
@@ -4385,10 +4410,12 @@ void Options::checkIllegalOptionCombinations()
 	if ( fStackAddr != 0 ) {
 		switch (fArchitecture) {
 			case CPU_TYPE_I386:
+			case CPU_TYPE_POWERPC:
             case CPU_TYPE_ARM:
 				if ( fStackAddr > 0xFFFFFFFF )
 					throw "-stack_addr must be < 4G for 32-bit processes";
 				break;
+			case CPU_TYPE_POWERPC64:
 			case CPU_TYPE_X86_64:
 			case CPU_TYPE_ARM64:
 				break;
@@ -4403,6 +4430,7 @@ void Options::checkIllegalOptionCombinations()
 	if ( fStackSize != 0 ) {
 		switch (fArchitecture) {
 			case CPU_TYPE_I386:
+			case CPU_TYPE_POWERPC:
 				if ( fStackSize > 0xFFFFFFFF )
 					throw "-stack_size must be < 4G for 32-bit processes";
 				if ( fStackAddr == 0 ) {
@@ -4419,6 +4447,7 @@ void Options::checkIllegalOptionCombinations()
                 if ( fStackAddr > 0x30000000)
                     throw "-stack_addr must be < 0x30000000 for arm";
 				break;
+			case CPU_TYPE_POWERPC64:
 			case CPU_TYPE_X86_64:
 				if ( fStackAddr == 0 ) {
 					fStackAddr = 0x00007FFF5C000000LL;
@@ -4539,6 +4568,7 @@ void Options::checkIllegalOptionCombinations()
 			if ( fObjCABIVersion2Override )
 				alterObjC1ClassNamesToObjC2 = true;
 			break;
+		case CPU_TYPE_POWERPC64:
 		case CPU_TYPE_X86_64:
 		case CPU_TYPE_ARM:
 		case CPU_TYPE_ARM64:
@@ -4633,9 +4663,17 @@ void Options::checkIllegalOptionCombinations()
 		// zero page size not specified on command line, set default
 		switch (fArchitecture) {
 			case CPU_TYPE_I386:
+			case CPU_TYPE_POWERPC:
             case CPU_TYPE_ARM:
 				// first 4KB for 32-bit architectures
 				fZeroPageSize = 0x1000;
+				break;
+			case CPU_TYPE_POWERPC64:
+				// first 4GB for ppc64 on 10.5
+				if ( fMacVersionMin >= ld::mac10_5 )
+					fZeroPageSize = 0x100000000ULL;
+				else
+					fZeroPageSize = 0x1000;	// 10.4 dyld may not be able to handle >4GB zero page
 				break;
 			case CPU_TYPE_ARM64:
 			case CPU_TYPE_X86_64:
