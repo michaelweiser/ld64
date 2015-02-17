@@ -23,25 +23,25 @@
 TESTROOT = ../..
 include ${TESTROOT}/include/common.makefile
 
+ifeq ($(ARCH),armv6)
+	ARCH_FLAGS = -mlong-branch
+else
+	ARCH_FLAGS = 
+endif
 
-SHELL = bash # use bash shell so we can redirect just stderr
 
 
 #
+# Simple test for branch islands
 #
-#   <rdar://problem/5726215> comdat warnings in ld -r
-#
-#  also use -falign-functions to force an out of order coalesing  
-#
+
 run: all
 
-all:
-	${CXX} ${CCXXFLAGS} foo.cxx -c -o foo.o
-	${CXX} ${CCXXFLAGS} bar.cxx -c -o bar.o -falign-functions=32
-	${CXX} ${CCXXFLAGS} baz.cxx -c -o baz.o
-	${LD} -r foo.o bar.o baz.o -o foobarbaz.o 2> warnings.log
-	grep warning warnings.log | ${PASS_IFF_EMPTY}
 
+
+all:
+	${CC} ${CCFLAGS} hello.c space.s extra.c -o hello ${ARCH_FLAGS}
+	${PASS_IFF_GOOD_MACHO} hello
 
 clean:
-	rm  foo.o bar.o baz.o foobarbaz.o warnings.log
+	rm  hello
