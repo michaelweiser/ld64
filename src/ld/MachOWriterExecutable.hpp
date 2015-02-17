@@ -968,6 +968,23 @@ private:
 };
 
 template <typename A>
+class MinimalTextAtom : public WriterAtom<A>
+{
+public:
+											MinimalTextAtom(Writer<A>& writer)
+													: WriterAtom<A>(writer, headerSegment(writer)) {}
+	virtual const char*						getDisplayName() const	{ return "minimal text"; }
+	virtual uint64_t						getSize() const			{ return 0; }
+	virtual const char*						getSectionName() const	{ return "__text"; }
+	virtual void							copyRawContent(uint8_t buffer[]) const { }
+	virtual ObjectFile::Atom::SymbolTableInclusion	getSymbolTableInclusion() const { return ObjectFile::Atom::kSymbolTableNotIn; }
+	
+private:
+	using WriterAtom<A>::fWriter;
+};
+
+
+template <typename A>
 class UnwindInfoAtom : public WriterAtom<A>
 {
 public:
@@ -1480,7 +1497,7 @@ public:
 	uint64_t								getFinalTargetAdress() const { return fFinalTarget.getAddress() + fFinalTargetOffset; }
 private:
 	using WriterAtom<A>::fWriter;
-	enum IslandKind { kBranchIslandToARM, kBranchIslandToThumb2, kBranchIslandToThumb1 };
+	enum IslandKind { kBranchIslandToARM, kBranchIslandToThumb2, kBranchIslandToThumb1, kBranchIslandNoPicToThumb1 };
 	const char*								fName;
 	ObjectFile::Atom&						fTarget;
 	ObjectFile::Atom&						fFinalTarget;
@@ -1689,14 +1706,15 @@ class ObjCInfoAtom : public WriterAtom<A>
 {
 public:
 											ObjCInfoAtom(Writer<A>& writer, ObjectFile::Reader::ObjcConstraint objcContraint,
-														bool objcReplacementClasses);
+														bool objcReplacementClasses, bool abi2override);
 	virtual const char*						getName() const				{ return "objc$info"; }
 	virtual ObjectFile::Atom::Scope			getScope() const			{ return ObjectFile::Atom::scopeLinkageUnit; }
 	virtual uint64_t						getSize() const				{ return 8; }
 	virtual const char*						getSectionName() const;
 	virtual void							copyRawContent(uint8_t buffer[]) const;
 private:
-	Segment&								getInfoSegment() const;
+	Segment&								getInfoSegment(bool abi2override) const;
+	bool									fAbi2override;
 	uint32_t								fContent[2];
 };
 
@@ -2869,7 +2887,7 @@ Writer<A>::Writer(const char* path, Options& options, std::vector<ExecutableFile
 	  fLargestAtomSize(1), 
 	  fEmitVirtualSections(false), fHasWeakExports(false), fReferencesWeakImports(false), 
 	  fCanScatter(false), fWritableSegmentPastFirst4GB(false), fNoReExportedDylibs(false), 
-	  fBiggerThanTwoGigs(false), fSlideable(false), fHasThumbBranches(false),
+	  fBiggerThanTwoGigs(false), fSlideable(false), fHasThumbBranches(false), 
 	  fFirstWritableSegment(NULL), fAnonNameIndex(1000)
 {
 	switch ( fOptions.outputKind() ) {
@@ -2891,6 +2909,7 @@ Writer<A>::Writer(const char* path, Options& options, std::vector<ExecutableFile
 			if ( fOptions.hasCustomStack() )
 				fWriterSynthesizedAtoms.push_back(new CustomStackAtom<A>(*this));
 			fWriterSynthesizedAtoms.push_back(fHeaderPadding = new LoadCommandsPaddingAtom<A>(*this));
+			fWriterSynthesizedAtoms.push_back(new MinimalTextAtom<A>(*this));
 			if ( fOptions.needsUnwindInfoSection() )
 				fWriterSynthesizedAtoms.push_back(fUnwindInfoAtom = new UnwindInfoAtom<A>(*this));
 			fWriterSynthesizedAtoms.push_back(fSectionRelocationsAtom = new SectionRelocationsLinkEditAtom<A>(*this));
@@ -2941,6 +2960,7 @@ Writer<A>::Writer(const char* path, Options& options, std::vector<ExecutableFile
 			if ( fOptions.sharedRegionEligible() )
 				fWriterSynthesizedAtoms.push_back(new SegmentSplitInfoLoadCommandsAtom<A>(*this));
 			fWriterSynthesizedAtoms.push_back(fHeaderPadding = new LoadCommandsPaddingAtom<A>(*this));
+			fWriterSynthesizedAtoms.push_back(new MinimalTextAtom<A>(*this));
 			if ( fOptions.needsUnwindInfoSection() )
 				fWriterSynthesizedAtoms.push_back(fUnwindInfoAtom = new UnwindInfoAtom<A>(*this));
 			fWriterSynthesizedAtoms.push_back(fSectionRelocationsAtom = new SectionRelocationsLinkEditAtom<A>(*this));
@@ -3261,7 +3281,8 @@ int Writer<A>::compressedOrdinalForImortedAtom(ObjectFile::Atom* target)
 template <typename A>
 ObjectFile::Atom& Writer<A>::makeObjcInfoAtom(ObjectFile::Reader::ObjcConstraint objcContraint, bool objcReplacementClasses)
 {
-	return *(new ObjCInfoAtom<A>(*this, objcContraint, objcReplacementClasses));
+	
+	return *(new ObjCInfoAtom<A>(*this, objcContraint, objcReplacementClasses, fOptions.objCABIVersion2POverride()));
 }
 
 template <typename A>
@@ -4331,14 +4352,23 @@ uint32_t Writer<arm>::addObjectRelocs(ObjectFile::Atom* atom, ObjectFile::Refere
 				else
 					sreloc1->set_r_type(ARM_RELOC_SECTDIFF);
 				sreloc1->set_r_address(address);
-				sreloc1->set_r_value(target.getAddress());
+				if ( ref->getTargetOffset() >= target.getSize() )
+					sreloc1->set_r_value(target.getAddress());
+				else
+					sreloc1->set_r_value(target.getAddress()+ref->getTargetOffset());
 				sreloc2->set_r_scattered(true);
 				sreloc2->set_r_pcrel(false);
 				sreloc2->set_r_length(2);
 				sreloc2->set_r_type(ARM_RELOC_PAIR);
 				sreloc2->set_r_address(0);
-				if ( &ref->getFromTarget() == atom )
-					sreloc2->set_r_value(ref->getFromTarget().getAddress()+ref->getFromTargetOffset());
+				if ( &ref->getFromTarget() == atom ) {
+					unsigned int pcBaseOffset = atom->isThumb() ? 4 : 8;
+					if ( (ref->getFromTargetOffset() > pcBaseOffset) && (strncmp(atom->getSectionName(), "__text", 6) == 0) ) {
+						sreloc2->set_r_value(ref->getFromTarget().getAddress()+ref->getFromTargetOffset()-pcBaseOffset);
+					}
+					else
+						sreloc2->set_r_value(ref->getFromTarget().getAddress()+ref->getFromTargetOffset());
+				}
 				else
 					sreloc2->set_r_value(ref->getFromTarget().getAddress());
 				fSectionRelocs.push_back(reloc2);
@@ -5273,7 +5303,10 @@ typename Writer<A>::RelocKind Writer<A>::relocationNeededInFinalLinkedImage(cons
 			else
 				return kRelocNone;
 		case ObjectFile::Atom::kWeakDefinition:
-			// all calls to global weak definitions get indirected
+			// in static executables, references to weak definitions are not indirected
+			if ( fOptions.outputKind() == Options::kStaticExecutable)
+				return kRelocNone;
+			// in dynamic code, all calls to global weak definitions get indirected
 			if ( this->shouldExport(target) )
 				return kRelocExternal;
 			else if ( fSlideable )
@@ -6228,6 +6261,7 @@ void Writer<arm>::fixUpReferenceFinal(const ObjectFile::Reference* ref, const Ob
 	uint32_t	firstDisp;
 	uint32_t	nextDisp;
 	uint32_t	opcode = 0;
+	int32_t		diff;
 	bool		relocateableExternal = false;
 	bool		is_bl;
 	bool		is_blx;
@@ -6308,8 +6342,10 @@ void Writer<arm>::fixUpReferenceFinal(const ObjectFile::Reference* ref, const Ob
 			}
 			break;
 		case arm::kPointerDiff:
-			LittleEndian::set32(*fixUp,
-				(ref->getTarget().getAddress() + ref->getTargetOffset()) - (ref->getFromTarget().getAddress() + ref->getFromTargetOffset()) );
+			diff = (ref->getTarget().getAddress() + ref->getTargetOffset()) - (ref->getFromTarget().getAddress() + ref->getFromTargetOffset());
+			if ( ref->getTarget().isThumb() && (ref->getTargetOffset() == 0) )
+				diff |= 1;
+			LittleEndian::set32(*fixUp, diff);
 			break;
 		case arm::kReadOnlyPointer:
 			if ( ref->getTarget().isThumb() && (ref->getTargetOffset() == 0))
@@ -6530,6 +6566,7 @@ void Writer<arm>::fixUpReferenceRelocatable(const ObjectFile::Reference* ref, co
 	uint32_t	firstDisp;
 	uint32_t	nextDisp;
 	uint32_t	opcode = 0;
+	int32_t		diff;
 	bool		relocateableExternal = false;
 	bool		is_bl;
 	bool		is_blx;
@@ -6550,7 +6587,6 @@ void Writer<arm>::fixUpReferenceRelocatable(const ObjectFile::Reference* ref, co
 		case arm::kPointer:
 		case arm::kReadOnlyPointer:
 		case arm::kPointerWeakImport:
-			{
 			if ( ((SectionInfo*)inAtom->getSection())->fAllNonLazyPointers ) {
 				// indirect symbol table has INDIRECT_SYMBOL_LOCAL, so we must put address in content
 				if ( this->indirectSymbolInRelocatableIsLocal(ref) ) 
@@ -6578,23 +6614,17 @@ void Writer<arm>::fixUpReferenceRelocatable(const ObjectFile::Reference* ref, co
 				}
 			}
 			else {
-				// internal relocation
-				if ( ref->getTarget().getDefinitionKind() != ObjectFile::Atom::kTentativeDefinition ) {
-					// pointer contains target address
-					if ( ref->getTarget().isThumb() && (ref->getTargetOffset() == 0))
+				// internal relocation =>  pointer contains target address
+				if ( ref->getTarget().isThumb() && (ref->getTargetOffset() == 0) )
 						targetAddr |= 1;
-						LittleEndian::set32(*fixUp, targetAddr);
-					}
-					else {
-						// pointer contains addend
-						LittleEndian::set32(*fixUp, ref->getTargetOffset());
-					}
-				}
+				LittleEndian::set32(*fixUp, targetAddr);
 			}
 			break;
 		case arm::kPointerDiff:
-				LittleEndian::set32(*fixUp,
-					(ref->getTarget().getAddress() + ref->getTargetOffset()) - (ref->getFromTarget().getAddress() + ref->getFromTargetOffset()) );
+			diff = (ref->getTarget().getAddress() + ref->getTargetOffset()) - (ref->getFromTarget().getAddress() + ref->getFromTargetOffset());
+			if ( ref->getTarget().isThumb() && (ref->getTargetOffset() == 0) )
+				diff |= 1;
+			LittleEndian::set32(*fixUp, diff);
 			break;
 		case arm::kDtraceProbeSite:
 		case arm::kDtraceIsEnabledSite:
@@ -9602,7 +9632,10 @@ void SegmentLoadCommandsAtom<A>::copyRawContent(uint8_t buffer[]) const
 						cmd->set_vmaddr(sectInfo->getBaseAddress());
 						cmd->set_fileoff(sectInfo->fFileOffset);
 					}
-					cmd->set_filesize((sectInfo->fFileOffset+sectInfo->fSize)-cmd->fileoff());
+					// <rdar://problem/7712869> if last section is zero-fill don't add size to filesize total
+					if ( !sectInfo->fAllZeroFill ) {
+						cmd->set_filesize((sectInfo->fFileOffset+sectInfo->fSize)-cmd->fileoff());
+					}
 					cmd->set_vmsize(sectInfo->getBaseAddress() + sectInfo->fSize);
 				}
 				sect->set_sectname(sectInfo->fSectionName);
@@ -10947,7 +10980,10 @@ BranchIslandAtom<A>::BranchIslandAtom(Writer<A>& writer, const char* name, int i
 			fIslandKind = kBranchIslandToThumb2;
 		}
 		else {
-			fIslandKind = kBranchIslandToThumb1;
+			if ( writer.fSlideable )
+				fIslandKind = kBranchIslandToThumb1;
+			else
+				fIslandKind = kBranchIslandNoPicToThumb1;
 		}
 	}
 	else {
@@ -11091,6 +11127,19 @@ void BranchIslandAtom<arm>::copyRawContent(uint8_t buffer[]) const
 			OSWriteLittleInt32(&buffer[12], 0, displacement);	// 	.long target-this		
 			}
 			break;
+		case kBranchIslandNoPicToThumb1:
+			{
+			// There is no large displacement thumb1 branch instruction.
+			// Instead use ARM instructions that can jump to thumb.
+			// we use a 32-bit displacement, so we can directly jump to target which means no island hopping
+			uint32_t targetAddr = getFinalTargetAdress();
+			if ( fFinalTarget.isThumb() )
+				targetAddr |= 1;
+			if (log) fprintf(stderr, "%s: 2 ARM instruction jump to final target at 0x%08llX\n", fName, getFinalTargetAdress());
+			OSWriteLittleInt32(&buffer[0], 0, 0xe51ff004);	// 	ldr	pc, [pc, #-4]
+			OSWriteLittleInt32(&buffer[4], 0, targetAddr);	// 	.long target-this		
+			}
+			break;	
 	};
 }
 
@@ -11116,6 +11165,8 @@ uint64_t BranchIslandAtom<arm>::getSize() const
 			return 16;
 		case kBranchIslandToThumb2:
 			return 4;
+		case kBranchIslandNoPicToThumb1:
+			return 8;
 	};
 	throw "internal error: no ARM branch island kind";
 }
@@ -11229,8 +11280,9 @@ void SegmentSplitInfoContentAtom<A>::encode()
 
 
 template <typename A>
-ObjCInfoAtom<A>::ObjCInfoAtom(Writer<A>& writer, ObjectFile::Reader::ObjcConstraint objcConstraint, bool objcReplacementClasses)
-	: WriterAtom<A>(writer, getInfoSegment())
+ObjCInfoAtom<A>::ObjCInfoAtom(Writer<A>& writer, ObjectFile::Reader::ObjcConstraint objcConstraint, 
+									bool objcReplacementClasses, bool abi2override)
+	: WriterAtom<A>(writer, getInfoSegment(abi2override)), fAbi2override(abi2override)
 {
 	fContent[0] = 0;
 	uint32_t value = 0;
@@ -11266,16 +11318,16 @@ void ObjCInfoAtom<A>::copyRawContent(uint8_t buffer[]) const
 
 // objc info section is in a different segment and section for 32 vs 64 bit runtimes
 template <> const char* ObjCInfoAtom<ppc>::getSectionName()    const { return "__image_info"; }
-template <> const char* ObjCInfoAtom<x86>::getSectionName()    const { return "__image_info"; }
+template <> const char* ObjCInfoAtom<x86>::getSectionName()    const { return fAbi2override ? "__objc_imageinfo" : "__image_info"; }
 template <> const char* ObjCInfoAtom<arm>::getSectionName()    const { return "__objc_imageinfo"; }
 template <> const char* ObjCInfoAtom<ppc64>::getSectionName()  const { return "__objc_imageinfo"; }
 template <> const char* ObjCInfoAtom<x86_64>::getSectionName() const { return "__objc_imageinfo"; }
 
-template <> Segment& ObjCInfoAtom<ppc>::getInfoSegment()    const { return Segment::fgObjCSegment; }
-template <> Segment& ObjCInfoAtom<x86>::getInfoSegment()    const { return Segment::fgObjCSegment; }
-template <> Segment& ObjCInfoAtom<ppc64>::getInfoSegment()  const { return Segment::fgDataSegment; }
-template <> Segment& ObjCInfoAtom<x86_64>::getInfoSegment() const { return Segment::fgDataSegment; }
-template <> Segment& ObjCInfoAtom<arm>::getInfoSegment()    const { return Segment::fgDataSegment; }
+template <> Segment& ObjCInfoAtom<ppc>::getInfoSegment(bool abi2override)    const { return Segment::fgObjCSegment; }
+template <> Segment& ObjCInfoAtom<x86>::getInfoSegment(bool abi2override)    const { return abi2override ? Segment::fgDataSegment : Segment::fgObjCSegment; }
+template <> Segment& ObjCInfoAtom<ppc64>::getInfoSegment(bool abi2override)  const { return Segment::fgDataSegment; }
+template <> Segment& ObjCInfoAtom<x86_64>::getInfoSegment(bool abi2override) const { return Segment::fgDataSegment; }
+template <> Segment& ObjCInfoAtom<arm>::getInfoSegment(bool abi2override)    const { return Segment::fgDataSegment; }
 
 
 

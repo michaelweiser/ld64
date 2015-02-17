@@ -99,12 +99,13 @@ Options::Options(int argc, const char* argv[])
 	  fVerbose(false), fKeepRelocations(false), fWarnStabs(false),
 	  fTraceDylibSearching(false), fPause(false), fStatistics(false), fPrintOptions(false),
 	  fSharedRegionEligible(false), fPrintOrderFileStatistics(false),  
-	  fReadOnlyx86Stubs(false), fPositionIndependentExecutable(false), fMaxMinimumHeaderPad(false),
+	  fReadOnlyx86Stubs(false), fPositionIndependentExecutable(false), 
+	  fDisablePositionIndependentExecutable(false), fMaxMinimumHeaderPad(false),
 	  fDeadStripDylibs(false),  fAllowTextRelocs(false), fWarnTextRelocs(false), 
 	  fUsingLazyDylibLinking(false), fEncryptable(true), 
 	  fOrderData(true), fMarkDeadStrippableDylib(false),
 	  fMakeClassicDyldInfo(true), fMakeCompressedDyldInfo(true), fAllowCpuSubtypeMismatches(false),
-	  fUseSimplifiedDylibReExports(false), fSaveTempFiles(false)
+	  fUseSimplifiedDylibReExports(false), fObjCABIVersion2POverride(false), fSaveTempFiles(false)
 {
 	this->checkForClassic(argc, argv);
 	this->parsePreCommandLineEnvironmentSettings();
@@ -1248,8 +1249,11 @@ void Options::setMacOSXVersionMin(const char* version)
 			case 6:
 				fReaderOptions.fMacVersionMin = ObjectFile::ReaderOptions::k10_6;
 				break;
+			case 7:
+				fReaderOptions.fMacVersionMin = ObjectFile::ReaderOptions::k10_7;
+				break;
 			default:
-				fReaderOptions.fMacVersionMin = ObjectFile::ReaderOptions::k10_6;
+				fReaderOptions.fMacVersionMin = ObjectFile::ReaderOptions::k10_7;
 				break;
 			}
 	}
@@ -1269,14 +1273,20 @@ void Options::setIPhoneVersionMin(const char* version)
 	if ( ! isdigit(version[2]) )
 		throw "-iphoneos_version_min argument is not a number";
 
-	if ( version[0] == '2' )
+		 if ( (version[0] == '2') && (version[2] == '0') )
 		fReaderOptions.fIPhoneVersionMin = ObjectFile::ReaderOptions::k2_0;
+	else if ( (version[0] == '2') && (version[2] == '1') )
+		fReaderOptions.fIPhoneVersionMin = ObjectFile::ReaderOptions::k2_1;
+	else if ( (version[0] == '2') && (version[2] >= '2') )
+		fReaderOptions.fIPhoneVersionMin = ObjectFile::ReaderOptions::k2_2;
 	else if ( (version[0] == '3') && (version[2] == '0') )
-		fReaderOptions.fIPhoneVersionMin = ObjectFile::ReaderOptions::k2_0;
-	else if ( (version[0] == '3') && (version[2] >= '1') )
+		fReaderOptions.fIPhoneVersionMin = ObjectFile::ReaderOptions::k3_0;
+	else if ( (version[0] == '3') && (version[2] == '1') )
 		fReaderOptions.fIPhoneVersionMin = ObjectFile::ReaderOptions::k3_1;
+	else if ( (version[0] == '3') && (version[2] >= '2') )
+		fReaderOptions.fIPhoneVersionMin = ObjectFile::ReaderOptions::k3_2;
 	else if ( (version[0] >= '4')  )
-		fReaderOptions.fIPhoneVersionMin = ObjectFile::ReaderOptions::k3_1;
+		fReaderOptions.fIPhoneVersionMin = ObjectFile::ReaderOptions::k4_0;
 	else {
 		fReaderOptions.fIPhoneVersionMin = ObjectFile::ReaderOptions::k2_0;
 		warning("unknown option to -iphoneos_version_min, not 2.x, 3.x, or 4.x");
@@ -2424,6 +2434,9 @@ void Options::parse(int argc, const char* argv[])
 			else if ( strcmp(arg, "-pie") == 0 ) {
 				fPositionIndependentExecutable = true;
 			}
+			else if ( strcmp(arg, "-no_pie") == 0 ) {
+				fDisablePositionIndependentExecutable = true;
+			}
 			else if ( strncmp(arg, "-reexport-l", 11) == 0 ) {
 				FileInfo info = findLibrary(&arg[11], true);
 				info.options.fReExport = true;
@@ -2498,6 +2511,15 @@ void Options::parse(int argc, const char* argv[])
 			else if ( strcmp(arg, "-no_zero_fill_sections") == 0 ) {
 				fReaderOptions.fOptimizeZeroFill = false;
 			}
+			else if ( strcmp(arg, "-objc_abi_version") == 0 ) {
+				const char* version = argv[++i];
+				 if ( version == NULL )
+					throw "-objc_abi_version missing version number";
+				if ( strcmp(version, "2") == 0 )
+					fObjCABIVersion2POverride = true;
+				else
+					warning("ignoring unrecognized argument (%s) to -objc_abi_version", version);
+			}
 			else {
 				throwf("unknown option: %s", arg);
 			}
@@ -2537,10 +2559,36 @@ void Options::buildSearchPaths(int argc, const char* argv[])
 	frameworkPaths.reserve(10);
 	// scan through argv looking for -L, -F, -Z, and -syslibroot options
 	for(int i=0; i < argc; ++i) {
-		if ( (argv[i][0] == '-') && (argv[i][1] == 'L') )
-			libraryPaths.push_back(&argv[i][2]);
-		else if ( (argv[i][0] == '-') && (argv[i][1] == 'F') )
-			frameworkPaths.push_back(&argv[i][2]);
+		if ( (argv[i][0] == '-') && (argv[i][1] == 'L') ) {
+			const char* libSearchDir = &argv[i][2];
+			if ( libSearchDir[0] == '\0' ) 
+				throw "-L must be immediately followed by a directory path (no space)";
+			struct stat statbuf;
+			if ( stat(libSearchDir, &statbuf) == 0 ) {
+				if ( statbuf.st_mode & S_IFDIR )
+					libraryPaths.push_back(libSearchDir);
+				else
+					warning("path '%s' following -L not a directory", libSearchDir);
+			}
+			else {
+				warning("directory '%s' following -L not found", libSearchDir);
+			}
+		}
+		else if ( (argv[i][0] == '-') && (argv[i][1] == 'F') ) {
+			const char* frameworkSearchDir = &argv[i][2];
+			if ( frameworkSearchDir[0] == '\0' ) 
+				throw "-F must be immediately followed by a directory path (no space)";
+			struct stat statbuf;
+			if ( stat(frameworkSearchDir, &statbuf) == 0 ) {
+				if ( statbuf.st_mode & S_IFDIR )
+					frameworkPaths.push_back(frameworkSearchDir);
+				else
+					warning("path '%s' following -F not a directory", frameworkSearchDir);
+			}
+			else {
+				warning("directory '%s' following -F not found", frameworkSearchDir);
+			}
+		}
 		else if ( strcmp(argv[i], "-Z") == 0 )
 			addStandardLibraryDirectories = false;
 		else if ( strcmp(argv[i], "-v") == 0 ) {
@@ -2719,6 +2767,11 @@ void Options::parsePreCommandLineEnvironmentSettings()
 	if ( getenv("LD_NO_COMPACT_LINKEDIT") != NULL ) {
 		fMakeCompressedDyldInfo = false;
 		fMakeClassicDyldInfo = true;
+	}
+	// temporary until projects adopt -no_pie
+	if ( getenv("LD_NO_PIE") != NULL ) {
+		warning("LD_NO_PIE being used to disble building a position independent executable");
+		fDisablePositionIndependentExecutable = true;
 	}
 
 	sWarningsSideFilePath = getenv("LD_WARN_FILE");
@@ -3147,6 +3200,12 @@ void Options::reconfigureDefaults()
 	// Mac OS X 10.5 and iPhoneOS 2.0 support LC_REEXPORT_DYLIB
 	if ( minOS(ObjectFile::ReaderOptions::k10_5, ObjectFile::ReaderOptions::k2_0) )
 		fUseSimplifiedDylibReExports = true;
+		
+	// x86_64 for MacOSX 10.7 defaults to PIE
+	if ( (fArchitecture == CPU_TYPE_X86_64) && (fOutputKind == kDynamicExecutable)
+			&& (fReaderOptions.fMacVersionMin >= ObjectFile::ReaderOptions::k10_7) ) {
+		fPositionIndependentExecutable = true;
+	}
 }
 
 void Options::checkIllegalOptionCombinations()
@@ -3343,6 +3402,11 @@ void Options::checkIllegalOptionCombinations()
 		if ( strncmp(name, ".objc_class_name_", 17) == 0 ) {
 			// rdar://problem/4718189 map ObjC class names to new runtime names
 			switch (fArchitecture) {
+				case CPU_TYPE_I386:
+					// i386 only uses new symbols when using objc2 ABI
+					if ( !fObjCABIVersion2POverride )
+						break;
+					// when using objc2 ABI to same as archs below
 				case CPU_TYPE_POWERPC64:
 				case CPU_TYPE_X86_64:
 			    case CPU_TYPE_ARM:
@@ -3454,6 +3518,10 @@ void Options::checkIllegalOptionCombinations()
 	if ( fPositionIndependentExecutable ) {
 		switch ( fOutputKind ) {
 			case Options::kDynamicExecutable:
+				// -no_pie anywhere on command line disable PIE
+				if ( fDisablePositionIndependentExecutable )
+					fPositionIndependentExecutable = false;
+				break;
 			case Options::kPreload:
 				break;
 			case Options::kDynamicLibrary:

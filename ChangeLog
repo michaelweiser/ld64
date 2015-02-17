@@ -1,4 +1,247 @@
 
+----- Tagged ld64-97.14
+
+2010-04-20    Nick Kledzik    <kledzik@apple.com>
+
+	<rdar://problem/7712869> if last section is zero-fill don't add size to filesize total in -r mode
+
+----- Tagged ld64-97.13
+
+2010-03-17    Nick Kledzik    <kledzik@apple.com>
+
+	<rdar://problem/7824112> Support for iPhoneSimulator with OBJC 2.0 ABI
+
+
+----- Tagged ld64-97.12
+
+2010-03-17    Nick Kledzik    <kledzik@apple.com>
+
+	<rdar://problem/7712869> if last section is zero-fill don't add size to filesize total in -r mode
+
+----- Tagged ld64-97.11
+
+2010-01-26    Nick Kledzik    <kledzik@apple.com>
+
+	<rdar://problem/7622634> Libc-624.1 causes latent ld bug
+	* build linker -no_pie
+	
+
+----- Tagged ld64-97.10
+
+2010-01-26    Nick Kledzik    <kledzik@apple.com>
+	
+	<rdar://problem/7556912> LC_SEGMENT command 0 filesize field greater than vmsize field
+	* Move __DATA to end in -r mode
+	
+
+2010-01-26    Nick Kledzik    <kledzik@apple.com>
+
+	<rdar://problem/7516793> symboled __ustring strings of just 0x0000 mis-parsed
+	* Parse __ustring section based on content - not just labels
+
+
+----- Tagged ld64-97.9
+
+2010-01-14    Nick Kledzik    <kledzik@apple.com>
+
+	<rdar://problem/7532743> LC_SEGMENT command 0 filesize field greater than vmsize field
+	* for i386 -r mode sort __IMPORT segment before __DATA segment
+
+
+2010-01-11    Nick Kledzik    <kledzik@apple.com>
+
+	* fix ARM -r -d references to tentative definitions
+
+----- Tagged ld64-97.8
+
+2009-12-08    Nick Kledzik    <kledzik@apple.com>
+
+	<rdar://problem/7455147> many mach-o images in Barolo have MH_WEAK_DEFINES bit incorrectly set
+	* don't let auto-strip weak symbols set MH_WEAK_DEFINES
+	
+
+----- Tagged ld64-97.7
+
+2009-11-30    Nick Kledzik    <kledzik@apple.com>
+
+	<rdar://problem/7429384> llvmgcc now puts const short arrays in __ustring section, linker does not handle that
+	* Only auto-coalesce UTF16 strings that are labeled with "___utf16_string*"
+
+
+----- Tagged ld64-97.6
+ 
+2009-11-06    Nick Kledzik    <kledzik@apple.com>
+ 
+ 	<rdar://problem/7332627> make -pie default for x86_64 for 10.7 and later
+
+
+2009-10-28    Nick Kledzik    <kledzik@apple.com>
+
+	<rdar://problem/7331635> Add a -no_pie flag
+	* support -no_pie and LD_NO_PIE
+
+
+----- Tagged ld64-97.5
+
+2009-10-27     Nick Kledzik    <kledzik@apple.com>
+
+	<rdar://problem/7341117> crash when __ustring section has zero length string
+	* stop trying to suppress tailing 0x0000 from synthesized string used to coalese utf16 strings
+	
+
+----- Tagged ld64-97.4
+
+2009-10-21     Nick Kledzik    <kledzik@apple.com>
+
+	<rdar://problem/7320293> missing thumb bit when thumb function takes address of itself
+	* move toao.atom == srcao.atom test to after fromao.atom == srcao.atom test
+	
+
+----- Tagged ld64-97.3
+
+2009-10-06     Nick Kledzik    <kledzik@apple.com>
+
+	* Add missing LittleEndian::set32() in arm::kPointerDiff
+
+2009-10-05     Nick Kledzik    <kledzik@apple.com>
+
+	<rdar://problem/7268427> ARM: handle pointer-diff to weak thumb that is overridden by non-weak ARM
+	* When parsing ARM relocations, if target is a thumb function, remove one from addend
+	* When writing out content for arm::kPointerDiff, add one if target is thumb
+	* When writing ARM_RELOC_SECTDIFF, use target offsets if they fit in function
+
+
+----- Tagged ld64-97.2
+
+2009-09-25     Nick Kledzik    <kledzik@apple.com>
+
+	<rdar://problem/7200658> 'unknown DWARF EH encoding' message logged to console with clang-50
+
+
+----- Tagged ld64-97.1
+
+2009-07-28     Nick Kledzik    <kledzik@apple.com>
+
+	<rdar://problem/7099040> make better no-PIC branch island to thumb1
+	* Add kBranchIslandNoPicToThumb1 as 8-byte no-PIC island
+
+
+2009-07-20     Nick Kledzik    <kledzik@apple.com>
+
+	<rdar://problem/7075703> section$start$__DATA$__bss can fail
+	* In SectionBoundaryAtom constructor make __bss and __common be zero-fill
+	* In AtomSorter, make sure end kSectionEnd sort after kTentativeDefinition
+	* unit-tests/test-cases/section-labels-zero-fill: add test cases
+
+
+----- Tagged ld64-97
+
+2009-07-13     Nick Kledzik    <kledzik@apple.com>
+
+	<rdar://problem/7049478> empty dylib should have subtype from command line
+	In Linker::writeOutput() for ARM, set initial fCurrentCpuConstraint to be command line subtype
+
+
+2009-07-09     Nick Kledzik    <kledzik@apple.com>
+
+	<rdar://problem/7043920> crash when using -dead_strip and LTO with unresolved intrinsic
+	* In Linker::optimize() after final deadStripResolve() call checkUndefines() one last time
+
+
+2009-07-09     Nick Kledzik    <kledzik@apple.com>
+
+	<rdar://problem/7043256> ld64 can not find a -e entry point from an archive
+	* src/ld/ld.cpp: add searchArchives parameter to entryPoint() for use by deadStripResolve()
+	* unit-tests/test-cases/dead_strip-entry-archive: added test case
+	
+
+2009-07-08     Nick Kledzik    <kledzik@apple.com>
+
+	<rdar://problem/6702217> __objc_classrefs section could be coalesced
+	* In machoReader, chop up __objc_classrefs section into pointer size atoms
+	and make each weak and hidden with a name based on its target name. 
+	
+
+2009-06-26     Nick Kledzik    <kledzik@apple.com>
+
+	<rdar://problem/6715874> "ld: symbol dyld_stub_binding_helper not defined" for xnu built with clang for x86_64
+	* Fix relocationNeededInFinalLinkedImage() to say weak-defs don't require indirection in static executables
+	* Added unit-tests/test-cases/static-executable-weak-defines
+
+
+2009-06-26     Nick Kledzik    <kledzik@apple.com>
+
+	<rdar://problem/7012016> Error msg for missing -init symbol is misleading/unclear
+	* In Linker::checkUndefines() check all ways that the command line could add an undefined
+	  and then search for close matches/typos.
+
+
+2009-06-25     Nick Kledzik    <kledzik@apple.com>
+
+	<rdar://problem/5725900> We need ld-symbol-moving-symbols for ARM/Embedded
+	* In mach_o::dylib::Reader::addSymbol() parse iPhoneOS version strings
+	* Update IPhoneVersionMin
+	
+
+2009-06-25     Nick Kledzik    <kledzik@apple.com>
+
+	<rdar://problem/6933931> Linker makes subtype-zero file from empty subtype-nonzero file.
+	* In Linker::writeOutput() set inittal fCurrentCpuConstraint to be command line subtype
+	* Fix fArchitectureName to have arm sub-types
+
+
+2009-06-24     Nick Kledzik    <kledzik@apple.com>
+
+	<rdar://problem/6955021> ld should do a better job of reporting attempts to link directories
+	* In Options::buildSearchPaths() sanity check -L and -F options
+	
+
+2009-06-24     Nick Kledzik    <kledzik@apple.com>
+
+	<rdar://problem/6974647> better error message when libLTO.dylib not loadable
+	* in Linker::createReader() provide detail error messages
+
+
+----- Tagged ld64-96.10
+
+2009-08-31     Nick Kledzik    <kledzik@apple.com>
+
+	<rdar://problem/7182988> empty dylib has been __mh_dylib_header n_sect
+	* rework patch to use MinimalTextAtom to ensure there is always a __text section 
+	
+
+----- Tagged ld64-96.9
+
+2009-08-31     Nick Kledzik    <kledzik@apple.com>
+
+	<rdar://problem/7182988> empty dylib has been __mh_dylib_header n_sect
+	* suppress __mh_dylib_header from symbol table if there is no __text section
+	
+	Implicitly add dyld_stub_binder to libSystem.dylib so iPhone clients can build
+	against SnowLeopard libSystem.dylib.
+
+
+----- Tagged ld64-96.8
+
+2009-08-30     Nick Kledzik    <kledzik@apple.com>
+
+	<rdar://problem/7049478> SWB: gcc-5577.1 fails to build vecLib
+		
+
+----- Tagged ld64-96.7
+
+2009-08-29     Nick Kledzik    <kledzik@apple.com>
+
+	<rdar://problem/6933931> Linker makes subtype-zero file from empty subtype-nonzero file.	
+
+	
+----- Tagged ld64-96.6
+
+2009-07-30     Nick Kledzik    <kledzik@apple.com>
+
+	<rdar://problem/7103437> ld: ldr 12-bit displacement out of range on SnowLeopard with gcc-5648
+	* in Section::Section() set fIndex to ensure __symbolstub1 sorts to end of __TEXT segment
+
 
 ----- Tagged ld64-96.5
 
