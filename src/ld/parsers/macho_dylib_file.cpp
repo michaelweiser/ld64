@@ -1196,6 +1196,17 @@ bool isDylibFile(const uint8_t* fileContent, cpu_type_t* result, cpu_subtype_t* 
 		*subResult = CPU_SUBTYPE_ARM64_ALL;
 		return true;
 	}
+	if ( Parser<ppc>::validFile(fileContent, false) ) {
+		*result = CPU_TYPE_POWERPC;
+		const macho_header<Pointer32<BigEndian> >* header = (const macho_header<Pointer32<BigEndian> >*)fileContent;
+		*subResult = header->cpusubtype();
+		return true;
+	}
+	if ( Parser<ppc64>::validFile(fileContent, false) ) {
+		*result = CPU_TYPE_POWERPC64;
+		*subResult = CPU_SUBTYPE_POWERPC_ALL;
+		return true;
+	}
 	return false;
 }
 
@@ -1250,6 +1261,40 @@ const char* Parser<arm64>::fileKind(const uint8_t* fileContent)
 }
 #endif
 
+template <>
+const char* Parser<ppc>::fileKind(const uint8_t* fileContent)
+{
+	const macho_header<P>* header = (const macho_header<P>*)fileContent;
+	if ( header->magic() != MH_MAGIC )
+		return NULL;
+	if ( header->cputype() != CPU_TYPE_POWERPC )
+		return NULL;
+	switch ( header->cpusubtype() ) {
+		case CPU_SUBTYPE_POWERPC_750:
+			return "ppc750";
+		case CPU_SUBTYPE_POWERPC_7400:
+			return "ppc7400";
+		case CPU_SUBTYPE_POWERPC_7450:
+			return "ppc7450";
+		case CPU_SUBTYPE_POWERPC_970:
+			return "ppc970";
+		case CPU_SUBTYPE_POWERPC_ALL:
+			return "ppc";
+	}
+	return "ppc???";
+}
+
+template <>
+const char* Parser<ppc64>::fileKind(const uint8_t* fileContent)
+{
+	const macho_header<P>* header = (const macho_header<P>*)fileContent;
+	if ( header->magic() != MH_MAGIC )
+		return NULL;
+	if ( header->cputype() != CPU_TYPE_POWERPC64 )
+		return NULL;
+	return "ppc64";
+}
+
 //
 // used by linker is error messages to describe mismatched files
 //
@@ -1269,6 +1314,12 @@ const char* archName(const uint8_t* fileContent)
 		return Parser<arm64>::fileKind(fileContent);
 	}
 #endif
+	if ( Parser<ppc>::validFile(fileContent, true) ) {
+		return Parser<ppc>::fileKind(fileContent);
+	}
+	if ( Parser<ppc64>::validFile(fileContent, false) ) {
+		return Parser<ppc64>::fileKind(fileContent);
+	}
 	return NULL;
 }
 
