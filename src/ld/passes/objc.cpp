@@ -1194,11 +1194,11 @@ void doPass(const Options& opts, ld::Internal& state)
 #endif
 			case CPU_TYPE_POWERPC:
 				state.addAtom(*new ObjCImageInfoAtom<ppc>(state.objcObjectConstraint, compaction,
-							state.hasObjcReplacementClasses, false));
+							false));
 				break;
 			case CPU_TYPE_POWERPC64:
 				state.addAtom(*new ObjCImageInfoAtom<ppc64>(state.objcObjectConstraint, compaction,
-							state.hasObjcReplacementClasses, true));
+							true));
 				break;
 			default:
 				assert(0 && "unknown objc arch");
