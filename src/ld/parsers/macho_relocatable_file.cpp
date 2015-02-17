@@ -4052,7 +4052,7 @@ void CFISection<x86>::cfiParse(class Parser<x86>& parser, uint8_t* buffer,
 template <>
 void CFISection<ppc>::cfiParse(class Parser<ppc>& parser, uint8_t* buffer,
 	libunwind::CFI_Atom_Info<CFISection<ppc>::OAS>::CFI_Atom_Info cfiArray[],
-	uint32_t count)
+	uint32_t& count, const pint_t cuStarts[], uint32_t cuCount)
 {
 	// create ObjectAddressSpace object for use by libunwind
 	OAS oas(*this, (uint8_t*)this->file().fileContent()+this->_machOSection->offset());
@@ -4061,6 +4061,7 @@ void CFISection<ppc>::cfiParse(class Parser<ppc>& parser, uint8_t* buffer,
 	const char* msg;
 	msg = libunwind::DwarfInstructions<OAS, libunwind::Registers_ppc>::parseCFIs(
 		oas, this->_machOSection->addr(), this->_machOSection->size(),
+		cuStarts, cuCount, parser.keepDwarfUnwind(), parser.forceDwarfConversion(),
 		cfiArray, count, (void*)&parser, warnFunc);
 	if ( msg != NULL )
 		throwf("malformed __eh_frame section: %s", msg);
@@ -4069,7 +4070,7 @@ void CFISection<ppc>::cfiParse(class Parser<ppc>& parser, uint8_t* buffer,
 template <>
 void CFISection<ppc64>::cfiParse(class Parser<ppc64>& parser, uint8_t* buffer,
 	libunwind::CFI_Atom_Info<CFISection<ppc64>::OAS>::CFI_Atom_Info cfiArray[],
-	uint32_t count)
+	uint32_t& count, const pint_t cuStarts[], uint32_t cuCount)
 {
 	// libunwind does not support ppc64
 	assert(count == 0);
@@ -4620,6 +4621,20 @@ bool CUSection<arm64>::encodingMeansUseDwarf(compact_unwind_encoding_t enc)
 	return ((enc & UNWIND_ARM64_MODE_MASK) == UNWIND_ARM64_MODE_DWARF);
 }
 #endif
+
+/* No unwind headers saying anything about PPC to be found anywhere. So the
+ * encoding shouldn't be able to ask for DWARF. */
+template <>
+bool CUSection<ppc>::encodingMeansUseDwarf(compact_unwind_encoding_t enc)
+{
+	return false;
+}
+
+template <>
+bool CUSection<ppc64>::encodingMeansUseDwarf(compact_unwind_encoding_t enc)
+{
+	return false;
+}
 
 template <typename A>
 int CUSection<A>::infoSorter(const void* l, const void* r)

@@ -1156,6 +1156,26 @@ const char* Parser<arm64>::fileKind(const uint8_t* fileContent)
 }
 #endif
 
+const char* Parser<ppc>::fileKind(const uint8_t* fileContent)
+{
+	const macho_header<P>* header = (const macho_header<P>*)fileContent;
+	if ( header->magic() != MH_MAGIC )
+		return NULL;
+	if ( header->cputype() != CPU_TYPE_POWERPC )
+		return NULL;
+	return "ppc";
+}
+
+const char* Parser<ppc64>::fileKind(const uint8_t* fileContent)
+{
+	const macho_header<P>* header = (const macho_header<P>*)fileContent;
+	if ( header->magic() != MH_MAGIC )
+		return NULL;
+	if ( header->cputype() != CPU_TYPE_POWERPC64 )
+		return NULL;
+	return "ppc64";
+}
+
 //
 // used by linker is error messages to describe mismatched files
 //
@@ -1175,6 +1195,12 @@ const char* archName(const uint8_t* fileContent)
 		return Parser<arm64>::fileKind(fileContent);
 	}
 #endif
+	if ( Parser<ppc>::validFile(fileContent, true) ) {
+		return Parser<ppc>::fileKind(fileContent);
+	}
+	if ( Parser<ppc64>::validFile(fileContent, false) ) {
+		return Parser<ppc64>::fileKind(fileContent);
+	}
 	return NULL;
 }
 
