@@ -411,12 +411,17 @@ struct Fixup
 					kindStoreARM64TLVPLoadPage21, kindStoreARM64TLVPLoadPageOff12,
 					kindStoreARM64PointerToGOT, kindStoreARM64PCRelToGOT,
 #endif
+					// PowerPC specific store kinds
+					kindStorePPCBranch24, kindStorePPCBranch14,
+					kindStorePPCPicLow14, kindStorePPCPicLow16, kindStorePPCPicHigh16AddLow,
+					kindStorePPCAbsLow14, kindStorePPCAbsLow16, kindStorePPCAbsHigh16AddLow, kindStorePPCAbsHigh16,
 					// dtrace probes
 					kindDtraceExtra,
 					kindStoreX86DtraceCallSiteNop, kindStoreX86DtraceIsEnableSiteClear,
 					kindStoreARMDtraceCallSiteNop, kindStoreARMDtraceIsEnableSiteClear,
 					kindStoreARM64DtraceCallSiteNop, kindStoreARM64DtraceIsEnableSiteClear,
 					kindStoreThumbDtraceCallSiteNop, kindStoreThumbDtraceIsEnableSiteClear,
+					kindStorePPCDtraceCallSiteNop, kindStorePPCDtraceIsEnableSiteClear,
 					// lazy binding
 					kindLazyTarget, kindSetLazyOffset,
 					// data-in-code markers
@@ -452,6 +457,8 @@ struct Fixup
 					kindStoreTargetAddressARM64GOTLeaPage21,	// kindSetTargetAddress + kindStoreARM64GOTLeaPage21
 					kindStoreTargetAddressARM64GOTLeaPageOff12,	// kindSetTargetAddress + kindStoreARM64GOTLeaPageOff12
 #endif
+					// PowerPC value calculation and store combinations
+					kindStoreTargetAddressPPCBranch24,		// kindSetTargetAddress + kindStorePPCBranch24
 			};
 
 	union {
