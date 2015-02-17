@@ -399,6 +399,22 @@ const char* MachOChecker<A>::archName()
 			return "arm";
 		case CPU_TYPE_ARM64:
 			return "arm64";
+		case CPU_TYPE_POWERPC:
+			switch ( fHeader->cpusubtype() ) {
+				case CPU_SUBTYPE_POWERPC_750:
+					return "ppc750";
+				case CPU_SUBTYPE_POWERPC_7400:
+					return "ppc7400";
+				case CPU_SUBTYPE_POWERPC_7450:
+					return "ppc7450";
+				case CPU_SUBTYPE_POWERPC_970:
+					return "ppc970";
+				case CPU_SUBTYPE_POWERPC_ALL:
+					return "ppc";
+			}
+			return "ppc???";
+		case CPU_TYPE_POWERPC64:
+			return "ppc64";
 	}
 	return "unknown";
 }
