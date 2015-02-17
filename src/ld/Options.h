@@ -232,7 +232,6 @@ public:
 	bool						markAutoDeadStripDylib() { return fMarkDeadStrippableDylib; }
 	bool						removeEHLabels() { return fReaderOptions.fNoEHLabels; }
 	bool						useSimplifiedDylibReExports() { return fUseSimplifiedDylibReExports; }
-	bool						objCABIVersion2POverride() { return fObjCABIVersion2POverride; }
 
 private:
 	class CStringEquals
@@ -370,7 +369,6 @@ private:
 	bool								fPrintOrderFileStatistics;
 	bool								fReadOnlyx86Stubs;
 	bool								fPositionIndependentExecutable;
-	bool								fDisablePositionIndependentExecutable;
 	bool								fMaxMinimumHeaderPad;
 	bool								fDeadStripDylibs;
 	bool								fAllowTextRelocs;
@@ -384,7 +382,6 @@ private:
 	bool								fNoEHLabels;
 	bool								fAllowCpuSubtypeMismatches;
 	bool								fUseSimplifiedDylibReExports;
-	bool								fObjCABIVersion2POverride;
 	std::vector<const char*>			fInitialUndefines;
 	NameSet								fAllowedUndefined;
 	NameSet								fWhyLive;

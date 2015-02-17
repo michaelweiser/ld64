@@ -87,7 +87,7 @@ class Section : public ObjectFile::Section
 {
 public:
 	static Section*	find(const char* sectionName, const char* segmentName, bool zeroFill, bool untrustedZeroFill, bool createIfNeeded=true);
-	static void		assignIndexes(bool objfile);
+	static void		assignIndexes();
 	const char*		getName() { return fSectionName; }
 private:
 					Section(const char* sectionName, const char* segmentName, bool zeroFill, bool untrustedZeroFill);
@@ -109,13 +109,11 @@ private:
 	static NameToSection			fgMapping;
 	static std::vector<Section*>	fgSections;
 	static NameToOrdinal			fgSegmentDiscoverOrder;
-	static bool						fgMakingObjectFile;
 };
 
 Section::NameToSection	Section::fgMapping;
 std::vector<Section*>	Section::fgSections;
 Section::NameToOrdinal	Section::fgSegmentDiscoverOrder;
-bool					Section::fgMakingObjectFile;
 
 Section::Section(const char* sectionName, const char* segmentName, bool zeroFill, bool untrustedZeroFill)
  : fZeroFill(zeroFill), fUntrustedZeroFill(untrustedZeroFill)
@@ -256,10 +254,10 @@ int Section::Sorter::segmentOrdinal(const char* segName)
 	if ( strcmp(segName, "__TEXT") == 0 )
 		return 2;
 	if ( strcmp(segName, "__DATA") == 0 )
-		return (fgMakingObjectFile ? 6 : 3); // __DATA is last in .o files and here in FLI
+		return 3;
 	if ( strcmp(segName, "__OBJC") == 0 )
 		return 4;
-	if ( strcmp(segName, "__IMPORT") == 0 )
+	if ( strcmp(segName, "__OBJC2") == 0 )
 		return 5;
 	if ( strcmp(segName, "__LINKEDIT") == 0 )
 		return INT_MAX;	// linkedit segment should always sort last
@@ -288,7 +286,7 @@ bool Section::Sorter::operator()(Section* left, Section* right)
 	return left->fIndex < right->fIndex;
 }
 
-void Section::assignIndexes(bool objfile)
+void Section::assignIndexes()
 {	
 	//printf("unsorted sections:\n");
 	//for (std::vector<Section*>::iterator it=fgSections.begin(); it != fgSections.end(); it++) {
@@ -296,7 +294,6 @@ void Section::assignIndexes(bool objfile)
 	//}
 
 	// sort it
-	Section::fgMakingObjectFile = objfile;
 	std::sort(fgSections.begin(), fgSections.end(), Section::Sorter());
 
 	// assign correct section ordering to each Section object
@@ -796,10 +793,8 @@ void Linker::adjustScope()
 						//fprintf(stderr, "demote %s to hidden\n", name);
 					}
 					else if ( atom->getDefinitionKind() == ObjectFile::Atom::kWeakDefinition ) {
-						if ( atom->getSymbolTableInclusion() == ObjectFile::Atom::kSymbolTableIn ) {
-							// we do have an exported weak symbol, turn WEAK_DEFINES back on
-							fGlobalSymbolTable.setHasExternalWeakDefinitions(true);
-						}
+						// we do have an exported weak symbol, turn WEAK_DEFINES back on
+						fGlobalSymbolTable.setHasExternalWeakDefinitions(true);
 					}
 				}
 				else if ( scope == ObjectFile::Atom::scopeLinkageUnit ) {
@@ -2025,6 +2020,32 @@ static bool matchesObjectFile(ObjectFile::Atom* atom, const char* objectFileLeaf
 }
 
 
+static bool usesAnonymousNamespace(const char* symbol)
+{
+	return ( (strncmp(symbol, "__Z", 3) == 0) && (strstr(symbol, "_GLOBAL__N_") != NULL) );
+}
+
+
+//
+//  convert:
+//		__ZN20_GLOBAL__N__Z5main2v3barEv					=>  _ZN-3barEv
+//		__ZN37_GLOBAL__N_main.cxx_00000000_493A01A33barEv	=>  _ZN-3barEv
+//
+static void canonicalizeAnonymousName(const char* inSymbol, char outSymbol[])
+{
+	const char* globPtr = strstr(inSymbol, "_GLOBAL__N_");
+	while ( isdigit(*(--globPtr)) )
+		; // loop
+	char* endptr;
+	unsigned long length = strtoul(globPtr+1, &endptr, 10);
+	const char* globEndPtr = endptr + length;
+	int startLen = globPtr-inSymbol+1;
+	memcpy(outSymbol, inSymbol, startLen);
+	outSymbol[startLen] = '-';
+	strcpy(&outSymbol[startLen+1], globEndPtr);
+}
+
+
 ObjectFile::Atom* Linker::findAtom(const Options::OrderedSymbol& orderedSymbol)
 {
 	ObjectFile::Atom* atom = fGlobalSymbolTable.find(orderedSymbol.symbolName);
@@ -2035,6 +2056,7 @@ ObjectFile::Atom* Linker::findAtom(const Options::OrderedSymbol& orderedSymbol)
 	else {
 		// slow case.  The requested symbol is not in symbol table, so might be static function
 		static SymbolTable::Mapper hashTableOfTranslationUnitScopedSymbols;
+		static SymbolTable::Mapper hashTableOfSymbolsWithAnonymousNamespace;
 		static bool built = false;
 		// build a hash_map the first time
 		if ( !built ) {
@@ -2042,7 +2064,18 @@ ObjectFile::Atom* Linker::findAtom(const Options::OrderedSymbol& orderedSymbol)
 				atom = *it;
 				const char* name = atom->getName();
 				if ( name != NULL) {
-					if ( atom->getScope() == ObjectFile::Atom::scopeTranslationUnit ) {
+					if ( usesAnonymousNamespace(name) ) {
+						// symbol that uses anonymous namespace
+						char canonicalName[strlen(name)+2];
+						canonicalizeAnonymousName(name, canonicalName);
+						const char* hashName = strdup(canonicalName);
+						SymbolTable::Mapper::iterator pos = hashTableOfSymbolsWithAnonymousNamespace.find(hashName);
+						if ( pos == hashTableOfSymbolsWithAnonymousNamespace.end() )
+							hashTableOfSymbolsWithAnonymousNamespace[hashName] = atom;
+						else
+							hashTableOfSymbolsWithAnonymousNamespace[hashName] = NULL;	// collision, denote with NULL
+					}
+					else if ( atom->getScope() == ObjectFile::Atom::scopeTranslationUnit ) {
 						// static function or data
 						SymbolTable::Mapper::iterator pos = hashTableOfTranslationUnitScopedSymbols.find(name);
 						if ( pos == hashTableOfTranslationUnitScopedSymbols.end() )
@@ -2081,6 +2114,37 @@ ObjectFile::Atom* Linker::findAtom(const Options::OrderedSymbol& orderedSymbol)
 			}
 		}
 		
+		// look for name in hashTableOfSymbolsWithAnonymousNamespace
+		if ( usesAnonymousNamespace(orderedSymbol.symbolName) ) {
+			// symbol that uses anonymous namespace
+			char canonicalName[strlen(orderedSymbol.symbolName)+2];
+			canonicalizeAnonymousName(orderedSymbol.symbolName, canonicalName);
+			SymbolTable::Mapper::iterator pos = hashTableOfSymbolsWithAnonymousNamespace.find(canonicalName);
+			if ( pos != hashTableOfSymbolsWithAnonymousNamespace.end() ) {
+				if ( (pos->second != NULL) && matchesObjectFile(pos->second, orderedSymbol.objectFileName) ) {
+					//fprintf(stderr, "found %s in anonymous namespace hash table\n", canonicalName);
+					return pos->second;
+				}
+				if ( pos->second == NULL )
+				// name is in hash table, but atom is NULL, so that means there are duplicates, so we use super slow way
+				for (std::vector<ObjectFile::Atom*>::iterator it=fAllAtoms.begin(); it != fAllAtoms.end(); it++) {
+					atom = *it;
+					const char* name = atom->getName();
+					if ( (name != NULL) && usesAnonymousNamespace(name) ) {
+						char canonicalAtomName[strlen(name)+2];
+						canonicalizeAnonymousName(name, canonicalAtomName);
+						if ( strcmp(canonicalAtomName, canonicalName) == 0 ) {
+							if ( matchesObjectFile(atom, orderedSymbol.objectFileName) ) {
+								if ( fOptions.printOrderFileStatistics() )
+									warning("%s specified in order_file but it exists in multiple .o files. "
+										"Prefix symbol with .o filename in order_file to disambiguate", orderedSymbol.symbolName);
+								return atom;
+							}
+						}
+					}
+				}
+			}
+		}
 	}
 	return NULL;
 }
@@ -2088,7 +2152,7 @@ ObjectFile::Atom* Linker::findAtom(const Options::OrderedSymbol& orderedSymbol)
 
 void Linker::sortSections()
 {
-	Section::assignIndexes(fOptions.outputKind() == Options::kObjectFile);
+	Section::assignIndexes();
 }
 
 
@@ -4060,8 +4124,7 @@ bool Linker::SymbolTable::add(ObjectFile::Atom& newAtom)
 					++fRequireCount; // added a tentative definition means loadUndefines() needs to continue
 					break;
 				case ObjectFile::Atom::kWeakDefinition:
-					if ( newAtom.getSymbolTableInclusion() == ObjectFile::Atom::kSymbolTableIn )
-						fHasExternalWeakDefinitions = true;
+					fHasExternalWeakDefinitions = true;
 					break;
 				case ObjectFile::Atom::kExternalDefinition:
 				case ObjectFile::Atom::kExternalWeakDefinition:

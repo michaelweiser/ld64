@@ -1706,15 +1706,14 @@ class ObjCInfoAtom : public WriterAtom<A>
 {
 public:
 											ObjCInfoAtom(Writer<A>& writer, ObjectFile::Reader::ObjcConstraint objcContraint,
-														bool objcReplacementClasses, bool abi2override);
+														bool objcReplacementClasses);
 	virtual const char*						getName() const				{ return "objc$info"; }
 	virtual ObjectFile::Atom::Scope			getScope() const			{ return ObjectFile::Atom::scopeLinkageUnit; }
 	virtual uint64_t						getSize() const				{ return 8; }
 	virtual const char*						getSectionName() const;
 	virtual void							copyRawContent(uint8_t buffer[]) const;
 private:
-	Segment&								getInfoSegment(bool abi2override) const;
-	bool									fAbi2override;
+	Segment&								getInfoSegment() const;
 	uint32_t								fContent[2];
 };
 
@@ -3281,8 +3280,7 @@ int Writer<A>::compressedOrdinalForImortedAtom(ObjectFile::Atom* target)
 template <typename A>
 ObjectFile::Atom& Writer<A>::makeObjcInfoAtom(ObjectFile::Reader::ObjcConstraint objcContraint, bool objcReplacementClasses)
 {
-	
-	return *(new ObjCInfoAtom<A>(*this, objcContraint, objcReplacementClasses, fOptions.objCABIVersion2POverride()));
+	return *(new ObjCInfoAtom<A>(*this, objcContraint, objcReplacementClasses));
 }
 
 template <typename A>
@@ -4352,23 +4350,14 @@ uint32_t Writer<arm>::addObjectRelocs(ObjectFile::Atom* atom, ObjectFile::Refere
 				else
 					sreloc1->set_r_type(ARM_RELOC_SECTDIFF);
 				sreloc1->set_r_address(address);
-				if ( ref->getTargetOffset() >= target.getSize() )
-					sreloc1->set_r_value(target.getAddress());
-				else
-					sreloc1->set_r_value(target.getAddress()+ref->getTargetOffset());
+				sreloc1->set_r_value(target.getAddress());
 				sreloc2->set_r_scattered(true);
 				sreloc2->set_r_pcrel(false);
 				sreloc2->set_r_length(2);
 				sreloc2->set_r_type(ARM_RELOC_PAIR);
 				sreloc2->set_r_address(0);
-				if ( &ref->getFromTarget() == atom ) {
-					unsigned int pcBaseOffset = atom->isThumb() ? 4 : 8;
-					if ( (ref->getFromTargetOffset() > pcBaseOffset) && (strncmp(atom->getSectionName(), "__text", 6) == 0) ) {
-						sreloc2->set_r_value(ref->getFromTarget().getAddress()+ref->getFromTargetOffset()-pcBaseOffset);
-					}
-					else
-						sreloc2->set_r_value(ref->getFromTarget().getAddress()+ref->getFromTargetOffset());
-				}
+				if ( &ref->getFromTarget() == atom )
+					sreloc2->set_r_value(ref->getFromTarget().getAddress()+ref->getFromTargetOffset());
 				else
 					sreloc2->set_r_value(ref->getFromTarget().getAddress());
 				fSectionRelocs.push_back(reloc2);
@@ -6261,7 +6250,6 @@ void Writer<arm>::fixUpReferenceFinal(const ObjectFile::Reference* ref, const Ob
 	uint32_t	firstDisp;
 	uint32_t	nextDisp;
 	uint32_t	opcode = 0;
-	int32_t		diff;
 	bool		relocateableExternal = false;
 	bool		is_bl;
 	bool		is_blx;
@@ -6342,10 +6330,8 @@ void Writer<arm>::fixUpReferenceFinal(const ObjectFile::Reference* ref, const Ob
 			}
 			break;
 		case arm::kPointerDiff:
-			diff = (ref->getTarget().getAddress() + ref->getTargetOffset()) - (ref->getFromTarget().getAddress() + ref->getFromTargetOffset());
-			if ( ref->getTarget().isThumb() && (ref->getTargetOffset() == 0) )
-				diff |= 1;
-			LittleEndian::set32(*fixUp, diff);
+			LittleEndian::set32(*fixUp,
+				(ref->getTarget().getAddress() + ref->getTargetOffset()) - (ref->getFromTarget().getAddress() + ref->getFromTargetOffset()) );
 			break;
 		case arm::kReadOnlyPointer:
 			if ( ref->getTarget().isThumb() && (ref->getTargetOffset() == 0))
@@ -6566,7 +6552,6 @@ void Writer<arm>::fixUpReferenceRelocatable(const ObjectFile::Reference* ref, co
 	uint32_t	firstDisp;
 	uint32_t	nextDisp;
 	uint32_t	opcode = 0;
-	int32_t		diff;
 	bool		relocateableExternal = false;
 	bool		is_bl;
 	bool		is_blx;
@@ -6587,6 +6572,7 @@ void Writer<arm>::fixUpReferenceRelocatable(const ObjectFile::Reference* ref, co
 		case arm::kPointer:
 		case arm::kReadOnlyPointer:
 		case arm::kPointerWeakImport:
+			{
 			if ( ((SectionInfo*)inAtom->getSection())->fAllNonLazyPointers ) {
 				// indirect symbol table has INDIRECT_SYMBOL_LOCAL, so we must put address in content
 				if ( this->indirectSymbolInRelocatableIsLocal(ref) ) 
@@ -6614,17 +6600,23 @@ void Writer<arm>::fixUpReferenceRelocatable(const ObjectFile::Reference* ref, co
 				}
 			}
 			else {
-				// internal relocation =>  pointer contains target address
-				if ( ref->getTarget().isThumb() && (ref->getTargetOffset() == 0) )
+				// internal relocation
+				if ( ref->getTarget().getDefinitionKind() != ObjectFile::Atom::kTentativeDefinition ) {
+					// pointer contains target address
+					if ( ref->getTarget().isThumb() && (ref->getTargetOffset() == 0))
 						targetAddr |= 1;
-				LittleEndian::set32(*fixUp, targetAddr);
+						LittleEndian::set32(*fixUp, targetAddr);
+					}
+					else {
+						// pointer contains addend
+						LittleEndian::set32(*fixUp, ref->getTargetOffset());
+					}
+				}
 			}
 			break;
 		case arm::kPointerDiff:
-			diff = (ref->getTarget().getAddress() + ref->getTargetOffset()) - (ref->getFromTarget().getAddress() + ref->getFromTargetOffset());
-			if ( ref->getTarget().isThumb() && (ref->getTargetOffset() == 0) )
-				diff |= 1;
-			LittleEndian::set32(*fixUp, diff);
+				LittleEndian::set32(*fixUp,
+					(ref->getTarget().getAddress() + ref->getTargetOffset()) - (ref->getFromTarget().getAddress() + ref->getFromTargetOffset()) );
 			break;
 		case arm::kDtraceProbeSite:
 		case arm::kDtraceIsEnabledSite:
@@ -9632,10 +9624,7 @@ void SegmentLoadCommandsAtom<A>::copyRawContent(uint8_t buffer[]) const
 						cmd->set_vmaddr(sectInfo->getBaseAddress());
 						cmd->set_fileoff(sectInfo->fFileOffset);
 					}
-					// <rdar://problem/7712869> if last section is zero-fill don't add size to filesize total
-					if ( !sectInfo->fAllZeroFill ) {
-						cmd->set_filesize((sectInfo->fFileOffset+sectInfo->fSize)-cmd->fileoff());
-					}
+					cmd->set_filesize((sectInfo->fFileOffset+sectInfo->fSize)-cmd->fileoff());
 					cmd->set_vmsize(sectInfo->getBaseAddress() + sectInfo->fSize);
 				}
 				sect->set_sectname(sectInfo->fSectionName);
@@ -11280,9 +11269,8 @@ void SegmentSplitInfoContentAtom<A>::encode()
 
 
 template <typename A>
-ObjCInfoAtom<A>::ObjCInfoAtom(Writer<A>& writer, ObjectFile::Reader::ObjcConstraint objcConstraint, 
-									bool objcReplacementClasses, bool abi2override)
-	: WriterAtom<A>(writer, getInfoSegment(abi2override)), fAbi2override(abi2override)
+ObjCInfoAtom<A>::ObjCInfoAtom(Writer<A>& writer, ObjectFile::Reader::ObjcConstraint objcConstraint, bool objcReplacementClasses)
+	: WriterAtom<A>(writer, getInfoSegment())
 {
 	fContent[0] = 0;
 	uint32_t value = 0;
@@ -11318,16 +11306,16 @@ void ObjCInfoAtom<A>::copyRawContent(uint8_t buffer[]) const
 
 // objc info section is in a different segment and section for 32 vs 64 bit runtimes
 template <> const char* ObjCInfoAtom<ppc>::getSectionName()    const { return "__image_info"; }
-template <> const char* ObjCInfoAtom<x86>::getSectionName()    const { return fAbi2override ? "__objc_imageinfo" : "__image_info"; }
+template <> const char* ObjCInfoAtom<x86>::getSectionName()    const { return "__image_info"; }
 template <> const char* ObjCInfoAtom<arm>::getSectionName()    const { return "__objc_imageinfo"; }
 template <> const char* ObjCInfoAtom<ppc64>::getSectionName()  const { return "__objc_imageinfo"; }
 template <> const char* ObjCInfoAtom<x86_64>::getSectionName() const { return "__objc_imageinfo"; }
 
-template <> Segment& ObjCInfoAtom<ppc>::getInfoSegment(bool abi2override)    const { return Segment::fgObjCSegment; }
-template <> Segment& ObjCInfoAtom<x86>::getInfoSegment(bool abi2override)    const { return abi2override ? Segment::fgDataSegment : Segment::fgObjCSegment; }
-template <> Segment& ObjCInfoAtom<ppc64>::getInfoSegment(bool abi2override)  const { return Segment::fgDataSegment; }
-template <> Segment& ObjCInfoAtom<x86_64>::getInfoSegment(bool abi2override) const { return Segment::fgDataSegment; }
-template <> Segment& ObjCInfoAtom<arm>::getInfoSegment(bool abi2override)    const { return Segment::fgDataSegment; }
+template <> Segment& ObjCInfoAtom<ppc>::getInfoSegment()    const { return Segment::fgObjCSegment; }
+template <> Segment& ObjCInfoAtom<x86>::getInfoSegment()    const { return Segment::fgObjCSegment; }
+template <> Segment& ObjCInfoAtom<ppc64>::getInfoSegment()  const { return Segment::fgDataSegment; }
+template <> Segment& ObjCInfoAtom<x86_64>::getInfoSegment() const { return Segment::fgDataSegment; }
+template <> Segment& ObjCInfoAtom<arm>::getInfoSegment()    const { return Segment::fgDataSegment; }
 
 
 
