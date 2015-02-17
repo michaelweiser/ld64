@@ -30,6 +30,7 @@
 #include <mach-o/fat.h>
 #include <mach-o/stab.h>
 #include <mach-o/reloc.h>
+#include <mach-o/ppc/reloc.h>
 #include <mach-o/x86_64/reloc.h>
 #include <mach-o/arm/reloc.h>
 #include <mach-o/compact_unwind_encoding.h>

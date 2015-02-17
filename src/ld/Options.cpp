@@ -482,6 +482,50 @@ void Options::setArchitecture(cpu_type_t type, cpu_subtype_t subtype)
 	fArchitecture = type;
 	fSubArchitecture = subtype;
 	switch ( type ) {
+	case CPU_TYPE_POWERPC:
+		switch ( subtype ) {
+		case CPU_SUBTYPE_POWERPC_750:
+			fArchitectureName = "ppc750";
+			fHasPreferredSubType = true;
+			break;
+		case CPU_SUBTYPE_POWERPC_7400:
+			fArchitectureName = "ppc7400";
+			fHasPreferredSubType = true;
+			break;
+		case CPU_SUBTYPE_POWERPC_7450:
+			fArchitectureName = "ppc7450";
+			fHasPreferredSubType = true;
+			break;
+		case CPU_SUBTYPE_POWERPC_970:
+			fArchitectureName = "ppc970";
+			fHasPreferredSubType = true;
+			break;
+		case CPU_SUBTYPE_POWERPC_ALL:
+			fArchitectureName = "ppc";
+			fHasPreferredSubType = false;
+			break;
+		default:
+			assert(0 && "unknown ppc subtype");
+			fArchitectureName = "ppc";
+			break;
+		}
+		if ( (fMacVersionMin == ld::macVersionUnset) && (fOutputKind != Options::kObjectFile) ) {
+	#ifdef DEFAULT_MACOSX_MIN_VERSION
+			warning("-macosx_version_min not specificed, assuming " DEFAULT_MACOSX_MIN_VERSION);
+			setMacOSXVersionMin(DEFAULT_MACOSX_MIN_VERSION);
+	#else
+			warning("-macosx_version_min not specificed, assuming 10.6");
+			fMacVersionMin = ld::mac10_6;
+	#endif
+		}
+		break;
+	case CPU_TYPE_POWERPC64:
+		fArchitectureName = "ppc64";
+		if ( (fMacVersionMin == ld::macVersionUnset) && (fOutputKind != Options::kObjectFile) ) {
+			warning("-macosx_version_min not specificed, assuming 10.5");
+			fMacVersionMin = ld::mac10_5;
+		}
+		break;
 	case CPU_TYPE_I386:
 		fArchitectureName = "i386";
 		if ( (fMacVersionMin == ld::macVersionUnset) && (fOutputKind != Options::kObjectFile) ) {
@@ -550,6 +594,14 @@ void Options::parseArch(const char* arch)
 		fArchitecture = CPU_TYPE_I386;
 		fSubArchitecture = CPU_SUBTYPE_I386_ALL;
 	}
+	else if ( strcmp(arch, "ppc") == 0 ) {
+		fArchitecture = CPU_TYPE_POWERPC;
+		fSubArchitecture = CPU_SUBTYPE_POWERPC_ALL;
+	}
+	else if ( strcmp(arch, "ppc64") == 0 ) {
+		fArchitecture = CPU_TYPE_POWERPC64;
+		fSubArchitecture = CPU_SUBTYPE_POWERPC_ALL;
+	}
 	else if ( strcmp(arch, "x86_64") == 0 ) {
 		fArchitecture = CPU_TYPE_X86_64;
 		fSubArchitecture = CPU_SUBTYPE_X86_64_ALL;
@@ -557,6 +609,27 @@ void Options::parseArch(const char* arch)
 	else if ( strcmp(arch, "arm") == 0 ) {
 		fArchitecture = CPU_TYPE_ARM;
 		fSubArchitecture = CPU_SUBTYPE_ARM_ALL;
+	}
+	// compatibility support for cpu-sub-types
+	else if ( strcmp(arch, "ppc750") == 0 ) {
+		fArchitecture = CPU_TYPE_POWERPC;
+		fSubArchitecture = CPU_SUBTYPE_POWERPC_750;
+		fHasPreferredSubType = true;
+	}
+	else if ( strcmp(arch, "ppc7400") == 0 ) {
+		fArchitecture = CPU_TYPE_POWERPC;
+		fSubArchitecture = CPU_SUBTYPE_POWERPC_7400;
+		fHasPreferredSubType = true;
+	}
+	else if ( strcmp(arch, "ppc7450") == 0 ) {
+		fArchitecture = CPU_TYPE_POWERPC;
+		fSubArchitecture = CPU_SUBTYPE_POWERPC_7450;
+		fHasPreferredSubType = true;
+	}
+	else if ( strcmp(arch, "ppc970") == 0 ) {
+		fArchitecture = CPU_TYPE_POWERPC;
+		fSubArchitecture = CPU_SUBTYPE_POWERPC_970;
+		fHasPreferredSubType = true;
 	}
 	else {
 		for (const ARMSubType* t=ARMSubTypes; t->subTypeName != NULL; ++t) {
@@ -1552,9 +1625,15 @@ void Options::parseOrderFile(const char* path, bool cstring)
 				}
 				// if there is an architecture prefix, only use this symbol it if matches current arch
 				if ( strncmp(symbolStart, "ppc:", 4) == 0 ) {
+					if ( fArchitecture == CPU_TYPE_POWERPC )
+						symbolStart = &symbolStart[4];
+					else
 					symbolStart = NULL;
 				}
 				else if ( strncmp(symbolStart, "ppc64:", 6) == 0 ) {
+					if ( fArchitecture == CPU_TYPE_POWERPC64 )
+						symbolStart = &symbolStart[6];
+					else
 					symbolStart = NULL;
 				}
 				else if ( strncmp(symbolStart, "i386:", 5) == 0 ) {
@@ -3017,6 +3096,7 @@ void Options::reconfigureDefaults()
 			switch ( fArchitecture ) {
 				case CPU_TYPE_I386:
 				case CPU_TYPE_X86_64:
+				case CPU_TYPE_POWERPC:
 					if ( (fOutputKind != Options::kObjectFile) && (fOutputKind != Options::kPreload) ) {
 			#ifdef DEFAULT_MACOSX_MIN_VERSION
 						warning("-macosx_version_min not specificed, assuming " DEFAULT_MACOSX_MIN_VERSION);
@@ -3057,6 +3137,12 @@ void Options::reconfigureDefaults()
 				fMacVersionMin = ld::mac10_4;
 			}
 			break;
+		case CPU_TYPE_POWERPC64:
+			if ( fMacVersionMin < ld::mac10_4 ) {
+				//warning("-macosx_version_min should be 10.4 or later for ppc64");
+				fMacVersionMin = ld::mac10_4;
+			}
+			break;
 		case CPU_TYPE_X86_64:
 			if ( fMacVersionMin < ld::mac10_4 ) {
 				//warning("-macosx_version_min should be 10.4 or later for x86_64");
@@ -3085,6 +3171,7 @@ void Options::reconfigureDefaults()
 					break;
 				}
 				// else use object file
+			case CPU_TYPE_POWERPC:
 			case CPU_TYPE_I386:
 				// use .o files
 				fOutputKind = kObjectFile;
@@ -3127,8 +3214,9 @@ void Options::reconfigureDefaults()
 	
 	// split segs only allowed for dylibs
 	if ( fSplitSegs ) {
-        // split seg only supported for i386, and arm.
+        // split seg only supported for ppc, i386, and arm.
         switch ( fArchitecture ) {
+            case CPU_TYPE_POWERPC:
             case CPU_TYPE_I386:
                 if ( fOutputKind != Options::kDynamicLibrary )
                     fSplitSegs = false;
@@ -3155,9 +3243,11 @@ void Options::reconfigureDefaults()
 
 	// set too-large size
 	switch ( fArchitecture ) {
+		case CPU_TYPE_POWERPC:
 		case CPU_TYPE_I386:
 			fMaxAddress = 0xFFFFFFFF;
 			break;
+		case CPU_TYPE_POWERPC64:
 		case CPU_TYPE_X86_64:
 			break;
 		case CPU_TYPE_ARM:
@@ -3191,6 +3281,7 @@ void Options::reconfigureDefaults()
 	// disable prebinding depending on arch and min OS version
 	if ( fPrebind ) {
 		switch ( fArchitecture ) {
+			case CPU_TYPE_POWERPC:
 			case CPU_TYPE_I386:
 				if ( fMacVersionMin == ld::mac10_4 ) {
 					// in 10.4 only split seg dylibs are prebound
@@ -3224,6 +3315,7 @@ void Options::reconfigureDefaults()
 					}
 				}
 				break;
+			case CPU_TYPE_POWERPC64:
 			case CPU_TYPE_X86_64:
 				fPrebind = false;
 				break;
@@ -3270,6 +3362,10 @@ void Options::reconfigureDefaults()
 			case CPU_TYPE_I386:
 				if ( fIOSVersionMin != ld::iOSVersionUnset ) // simulator never needs modules
 					break;
+			case CPU_TYPE_POWERPC:	// 10.3 and earlier dyld requires a module table
+				if ( fMacVersionMin <= ld::mac10_5 )
+					fNeedsModuleTable = true;
+				break;
 			case CPU_TYPE_ARM:
 				if ( fPrebind )
 					fNeedsModuleTable = true; // redo_prebinding requires a module table
@@ -3301,6 +3397,8 @@ void Options::reconfigureDefaults()
 					break;
 			}
 			break;
+		case CPU_TYPE_POWERPC:
+		case CPU_TYPE_POWERPC64:
 		case CPU_TYPE_ARM:
 			fAddCompactUnwindEncoding = false;
 			fRemoveDwarfUnwindIfCompactExists = false;
@@ -3372,6 +3470,8 @@ void Options::reconfigureDefaults()
 				if ( !minOS(ld::mac10_6, ld::iOS_3_1) )
 					fMakeCompressedDyldInfo = false;
 				break;
+			case CPU_TYPE_POWERPC:
+			case CPU_TYPE_POWERPC64:
 			default:
 				fMakeCompressedDyldInfo = false;
 		}
@@ -3597,10 +3697,12 @@ void Options::checkIllegalOptionCombinations()
 	if ( fStackAddr != 0 ) {
 		switch (fArchitecture) {
 			case CPU_TYPE_I386:
+			case CPU_TYPE_POWERPC:
             case CPU_TYPE_ARM:
 				if ( fStackAddr > 0xFFFFFFFF )
 					throw "-stack_addr must be < 4G for 32-bit processes";
 				break;
+			case CPU_TYPE_POWERPC64:
 			case CPU_TYPE_X86_64:
 				break;
 		}
@@ -3614,6 +3716,7 @@ void Options::checkIllegalOptionCombinations()
 	if ( fStackSize != 0 ) {
 		switch (fArchitecture) {
 			case CPU_TYPE_I386:
+			case CPU_TYPE_POWERPC:
 				if ( fStackSize > 0xFFFFFFFF )
 					throw "-stack_size must be < 4G for 32-bit processes";
 				if ( fStackAddr == 0 ) {
@@ -3629,6 +3732,7 @@ void Options::checkIllegalOptionCombinations()
 					fStackAddr = 0x2F000000;
                 if ( fStackAddr > 0x30000000)
                     throw "-stack_addr must be < 0x30000000 for arm";
+			case CPU_TYPE_POWERPC64:
 			case CPU_TYPE_X86_64:
 				if ( fStackAddr == 0 ) {
 					fStackAddr = 0x00007FFF5C000000LL;
@@ -3738,6 +3842,7 @@ void Options::checkIllegalOptionCombinations()
 			if ( fObjCABIVersion2Override )
 				alterObjC1ClassNamesToObjC2 = true;
 			break;
+		case CPU_TYPE_POWERPC64:
 		case CPU_TYPE_X86_64:
 		case CPU_TYPE_ARM:
 			alterObjC1ClassNamesToObjC2 = true;
@@ -3831,9 +3936,17 @@ void Options::checkIllegalOptionCombinations()
 		// zero page size not specified on command line, set default
 		switch (fArchitecture) {
 			case CPU_TYPE_I386:
+			case CPU_TYPE_POWERPC:
             case CPU_TYPE_ARM:
 				// first 4KB for 32-bit architectures
 				fZeroPageSize = 0x1000;
+				break;
+			case CPU_TYPE_POWERPC64:
+				// first 4GB for ppc64 on 10.5
+				if ( fMacVersionMin >= ld::mac10_5 )
+					fZeroPageSize = 0x100000000ULL;
+				else
+					fZeroPageSize = 0x1000;	// 10.4 dyld may not be able to handle >4GB zero page
 				break;
 			case CPU_TYPE_X86_64:
 				// first 4GB for x86_64 on all OS's
@@ -4026,6 +4139,7 @@ void Options::checkForClassic(int argc, const char* argv[])
 	if( archFound ) {
 		switch ( fArchitecture ) {
 		case CPU_TYPE_I386:
+		case CPU_TYPE_POWERPC:
 			if ( (staticFound || kextFound) && !newLinker ) {
 				// this environment variable will disable use of ld_classic for -static links
 				if ( getenv("LD_NO_CLASSIC_LINKER_STATIC") == NULL ) {

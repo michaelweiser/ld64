@@ -94,6 +94,7 @@ private:
 	void					markLive(const ld::Atom& atom, WhyLiveBackChain* previous);
 	bool					isDtraceProbe(ld::Fixup::Kind kind);
 	void					liveUndefines(std::vector<const char*>&);
+	static unsigned int			ppcSubTypeIndex(uint32_t subtype);
 	bool					printReferencedBy(const char* name, SymbolTable::IndirectBindingSlot slot);
 			
 
