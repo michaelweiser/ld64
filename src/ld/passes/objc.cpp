@@ -1226,6 +1226,14 @@ void doPass(const Options& opts, ld::Internal& state)
 							  true, state.swiftVersion));
 				break;
 #endif
+			case CPU_TYPE_POWERPC:
+				state.addAtom(*new ObjCImageInfoAtom<ppc>(state.objcObjectConstraint, compaction,
+							state.hasObjcReplacementClasses, false));
+				break;
+			case CPU_TYPE_POWERPC64:
+				state.addAtom(*new ObjCImageInfoAtom<ppc64>(state.objcObjectConstraint, compaction,
+							state.hasObjcReplacementClasses, true));
+				break;
 			default:
 				assert(0 && "unknown objc arch");
 		}	
@@ -1255,6 +1263,9 @@ void doPass(const Options& opts, ld::Internal& state)
 				// disabled until tested
 				break;
 #endif
+			case CPU_TYPE_POWERPC64:
+			case CPU_TYPE_POWERPC:
+				break;
 			default:
 				assert(0 && "unknown objc arch");
 		}	
