@@ -64,6 +64,10 @@
 #include "MachOFileAbstraction.hpp"
 #include "Snapshot.h"
 
+#if (!(defined(__i386__) || defined(__x86_64__) || defined(__ppc64___)))
+# define NEEDS_OSATOMIC64_REPLACEMENTS 1
+#endif
+
 const bool _s_logPThreads = false;
 
 namespace ld {
@@ -205,6 +209,23 @@ const char* InputFiles::fileArch(const uint8_t* p, unsigned len)
 	return unsupported;
 }
 
+#if NEEDS_OSATOMIC64_REPLACEMENTS
+# if HAVE_PTHREADS
+pthread_mutex_t osatomicadd64_lock;
+# endif
+
+// provide replacement for OSAtomicAdd64 for platforms that don't have it
+int64_t OSAtomicAdd64(int64_t amount, volatile int64_t *target) {
+# if HAVE_PTHREADS
+	pthread_mutex_lock(&osatomicadd64_lock);
+# endif
+	(*target) += amount;
+# if HAVE_PTHREADS
+	pthread_mutex_unlock(&osatomicadd64_lock);
+# endif
+	return *target;
+}
+#endif
 
 ld::File* InputFiles::makeFile(const Options::FileInfo& info, bool indirectDylib)
 {
@@ -832,6 +853,9 @@ InputFiles::InputFiles(Options& opts, const char** archName)
 	pthread_mutex_init(&_parseLock, NULL);
 	pthread_cond_init(&_parseWorkReady, NULL);
 	pthread_cond_init(&_newFileAvailable, NULL);
+# if NEEDS_OSATOMIC64_REPLACEMENTS
+	pthread_mutex_init(&osatomicadd64_lock, NULL);
+# endif
 #endif
 	const std::vector<Options::FileInfo>& files = _options.getInputFiles();
 	if ( files.size() == 0 )
