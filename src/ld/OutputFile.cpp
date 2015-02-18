@@ -3211,6 +3211,18 @@ void OutputFile::addLinkEdit(ld::Internal& state)
 				_functionStartsAtom = new FunctionStartsAtom<ppc>(_options, state, *this);
 				functionStartsSection = state.addAtom(*_functionStartsAtom);
 			}
+			if ( _hasDataInCodeInfo ) {
+				_dataInCodeAtom = new DataInCodeAtom<ppc>(_options, state, *this);
+				dataInCodeSection = state.addAtom(*_dataInCodeAtom);
+			}
+			if ( _hasOptimizationHints ) {
+				_optimizationHintsAtom = new OptimizationHintsAtom<ppc>(_options, state, *this);
+				optimizationHintsSection = state.addAtom(*_optimizationHintsAtom);
+			}
+			if ( _hasDependentDRInfo ) {
+				_dependentDRInfoAtom = new DependentDRAtom<ppc>(_options, state, *this);
+				dependentDRsSection = state.addAtom(*_dependentDRInfoAtom);
+			}
 			if ( _hasSymbolTable ) {
 				_symbolTableAtom = new SymbolTableAtom<ppc>(_options, state, *this);
 				symbolTableSection = state.addAtom(*_symbolTableAtom);
@@ -3506,6 +3518,18 @@ void OutputFile::addLinkEdit(ld::Internal& state)
 			if ( _hasFunctionStartsInfo ) {
 				_functionStartsAtom = new FunctionStartsAtom<ppc64>(_options, state, *this);
 				functionStartsSection = state.addAtom(*_functionStartsAtom);
+			}
+			if ( _hasDataInCodeInfo ) {
+				_dataInCodeAtom = new DataInCodeAtom<ppc64>(_options, state, *this);
+				dataInCodeSection = state.addAtom(*_dataInCodeAtom);
+			}
+			if ( _hasOptimizationHints ) {
+				_optimizationHintsAtom = new OptimizationHintsAtom<ppc64>(_options, state, *this);
+				optimizationHintsSection = state.addAtom(*_optimizationHintsAtom);
+			}
+			if ( _hasDependentDRInfo ) {
+				_dependentDRInfoAtom = new DependentDRAtom<ppc64>(_options, state, *this);
+				dependentDRsSection = state.addAtom(*_dependentDRInfoAtom);
 			}
 			if ( _hasSymbolTable ) {
 				_symbolTableAtom = new SymbolTableAtom<ppc64>(_options, state, *this);
