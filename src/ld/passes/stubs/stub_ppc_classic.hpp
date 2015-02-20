@@ -23,6 +23,7 @@
  */
 
 
+#if SUPPORT_ARCH_ppc
 // already in ld::passes::stubs namespace
 namespace ppc {
 namespace classic {
@@ -187,4 +188,4 @@ ld::Section StubNoPICAtom::_s_section("__TEXT", "__symbol_stub1", ld::Section::t
 
 } // namespace classic
 } // namespace ppc
-
+#endif
