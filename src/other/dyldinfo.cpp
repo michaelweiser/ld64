@@ -155,6 +155,7 @@ private:
 
 
 
+#if SUPPORT_ARCH_ppc
 template <>
 bool DyldInfoPrinter<ppc>::validFile(const uint8_t* fileContent)
 {	
@@ -172,7 +173,9 @@ bool DyldInfoPrinter<ppc>::validFile(const uint8_t* fileContent)
 	}
 	return false;
 }
+#endif
 
+#if SUPPORT_ARCH_ppc64
 template <>
 bool DyldInfoPrinter<ppc64>::validFile(const uint8_t* fileContent)
 {	
@@ -190,6 +193,7 @@ bool DyldInfoPrinter<ppc64>::validFile(const uint8_t* fileContent)
 	}
 	return false;
 }
+#endif
 
 template <>
 bool DyldInfoPrinter<x86>::validFile(const uint8_t* fileContent)
@@ -227,6 +231,7 @@ bool DyldInfoPrinter<x86_64>::validFile(const uint8_t* fileContent)
 	return false;
 }
 
+#if SUPPORT_ARCH_arm_any
 template <>
 bool DyldInfoPrinter<arm>::validFile(const uint8_t* fileContent)
 {	
@@ -244,6 +249,7 @@ bool DyldInfoPrinter<arm>::validFile(const uint8_t* fileContent)
 	}
 	return false;
 }
+#endif
 
 template <typename A>
 DyldInfoPrinter<A>::DyldInfoPrinter(const uint8_t* fileContent, uint32_t fileLength, const char* path, bool printArch)
@@ -344,9 +350,12 @@ DyldInfoPrinter<A>::DyldInfoPrinter(const uint8_t* fileContent, uint32_t fileLen
 			case CPU_TYPE_X86_64:
 				printf("for arch x86_64:\n");
 				break;
+#if SUPPORT_ARCH_ppc
 			case CPU_TYPE_POWERPC:			
 				printf("for arch ppc:\n");
 				break;
+#endif
+#if SUPPORT_ARCH_arm_any
 			case CPU_TYPE_ARM:
 				for (const ARMSubType* t=ARMSubTypes; t->subTypeName != NULL; ++t) {
 					if ( (cpu_subtype_t)fHeader->cpusubtype() == t->subType) {
@@ -354,6 +363,8 @@ DyldInfoPrinter<A>::DyldInfoPrinter(const uint8_t* fileContent, uint32_t fileLen
 						break;
 					}
 				}
+				break;
+#endif
 		}
 	}
 	
@@ -1545,6 +1556,7 @@ void DyldInfoPrinter<A>::printSharedRegionInfo()
 	}
 }
 
+#if SUPPORT_ARCH_arm_any
 template <>
 void DyldInfoPrinter<arm>::printFunctionStartLine(uint64_t addr)
 {
@@ -1553,6 +1565,7 @@ void DyldInfoPrinter<arm>::printFunctionStartLine(uint64_t addr)
 	else
 		printf("0x%0llX         %s\n", addr, symbolNameForAddress(addr)); 
 }
+#endif
 
 template <typename A>
 void DyldInfoPrinter<A>::printFunctionStartLine(uint64_t addr)
@@ -1618,6 +1631,7 @@ void DyldInfoPrinter<A>::printDylibsInfo()
 }
 
 
+#if SUPPORT_ARCH_ppc
 template <>
 ppc::P::uint_t DyldInfoPrinter<ppc>::relocBase()
 {
@@ -1626,7 +1640,9 @@ ppc::P::uint_t DyldInfoPrinter<ppc>::relocBase()
 	else
 		return fFirstSegment->vmaddr();
 }
+#endif
 
+#if SUPPORT_ARCH_ppc64
 template <>
 ppc64::P::uint_t DyldInfoPrinter<ppc64>::relocBase()
 {
@@ -1635,6 +1651,7 @@ ppc64::P::uint_t DyldInfoPrinter<ppc64>::relocBase()
 	else
 		return fFirstSegment->vmaddr();
 }
+#endif
 
 template <>
 x86::P::uint_t DyldInfoPrinter<x86>::relocBase()
@@ -1652,6 +1669,7 @@ x86_64::P::uint_t DyldInfoPrinter<x86_64>::relocBase()
 	return fFirstWritableSegment->vmaddr();
 }
 
+#if SUPPORT_ARCH_arm_any
 template <>
 arm::P::uint_t DyldInfoPrinter<arm>::relocBase()
 {
@@ -1660,8 +1678,10 @@ arm::P::uint_t DyldInfoPrinter<arm>::relocBase()
 	else
 		return fFirstSegment->vmaddr();
 }
+#endif
 
 
+#if SUPPORT_ARCH_ppc
 template <>
 const char*	DyldInfoPrinter<ppc>::relocTypeName(uint8_t r_type)
 {
@@ -1672,7 +1692,9 @@ const char*	DyldInfoPrinter<ppc>::relocTypeName(uint8_t r_type)
 	else
 		return "??";
 }
+#endif
 	
+#if SUPPORT_ARCH_ppc64
 template <>
 const char*	DyldInfoPrinter<ppc64>::relocTypeName(uint8_t r_type)
 {
@@ -1681,6 +1703,7 @@ const char*	DyldInfoPrinter<ppc64>::relocTypeName(uint8_t r_type)
 	else
 		return "??";
 }
+#endif
 	
 template <>
 const char*	DyldInfoPrinter<x86>::relocTypeName(uint8_t r_type)
@@ -1702,6 +1725,7 @@ const char*	DyldInfoPrinter<x86_64>::relocTypeName(uint8_t r_type)
 		return "??";
 }
 	
+#if SUPPORT_ARCH_arm_any
 template <>
 const char*	DyldInfoPrinter<arm>::relocTypeName(uint8_t r_type)
 {
@@ -1712,6 +1736,7 @@ const char*	DyldInfoPrinter<arm>::relocTypeName(uint8_t r_type)
 	else
 		return "??";
 }
+#endif
 	
 
 template <typename A>
@@ -1789,8 +1814,10 @@ void DyldInfoPrinter<A>::printSymbolTableExportInfo()
 			if ( sym->n_desc() & N_WEAK_DEF )
 				flags = "[weak_def] ";
 			pint_t thumb = 0;
+#if SUPPORT_ARCH_arm_any
 			if ( sym->n_desc() & N_ARM_THUMB_DEF )
 				thumb = 1;
+#endif
 			printf("0x%08llX %s%s\n", sym->n_value()+thumb, flags, &fStrings[sym->n_strx()]);
 		}
 	}
@@ -1979,36 +2006,42 @@ static void dump(const char* path)
 					&& ((sPreferredSubArch==0) || (sPreferredSubArch==cpusubtype)))
 					|| (sPreferredArch == 0) ) {	
 					switch(cputype) {
+#if SUPPORT_ARCH_ppc
 					case CPU_TYPE_POWERPC:
 						if ( DyldInfoPrinter<ppc>::validFile(p + offset) )
 							DyldInfoPrinter<ppc>::make(p + offset, size, path, (sPreferredArch == 0));
 						else
 							throw "in universal file, ppc slice does not contain ppc mach-o";
 						break;
+#endif
 					case CPU_TYPE_I386:
 						if ( DyldInfoPrinter<x86>::validFile(p + offset) )
 							DyldInfoPrinter<x86>::make(p + offset, size, path, (sPreferredArch == 0));
 						else
 							throw "in universal file, i386 slice does not contain i386 mach-o";
 						break;
+#if SUPPORT_ARCH_ppc64
 					case CPU_TYPE_POWERPC64:
 						if ( DyldInfoPrinter<ppc64>::validFile(p + offset) )
 							DyldInfoPrinter<ppc64>::make(p + offset, size, path, (sPreferredArch == 0));
 						else
 							throw "in universal file, ppc64 slice does not contain ppc64 mach-o";
 						break;
+#endif
 					case CPU_TYPE_X86_64:
 						if ( DyldInfoPrinter<x86_64>::validFile(p + offset) )
 							DyldInfoPrinter<x86_64>::make(p + offset, size, path, (sPreferredArch == 0));
 						else
 							throw "in universal file, x86_64 slice does not contain x86_64 mach-o";
 						break;
+#if SUPPORT_ARCH_arm_any
 					case CPU_TYPE_ARM:
 						if ( DyldInfoPrinter<arm>::validFile(p + offset) ) 
 							DyldInfoPrinter<arm>::make(p + offset, size, path, (sPreferredArch == 0));
 						else
 							throw "in universal file, arm slice does not contain arm mach-o";
 						break;
+#endif
 					default:
 							throwf("in universal file, unknown architecture slice 0x%x\n", cputype);
 					}
@@ -2018,18 +2051,24 @@ static void dump(const char* path)
 		else if ( DyldInfoPrinter<x86>::validFile(p) ) {
 			DyldInfoPrinter<x86>::make(p, length, path, false);
 		}
+#if SUPPORT_ARCH_ppc
 		else if ( DyldInfoPrinter<ppc>::validFile(p) ) {
 			DyldInfoPrinter<ppc>::make(p, length, path, false);
 		}
+#endif
+#if SUPPORT_ARCH_ppc64
 		else if ( DyldInfoPrinter<ppc64>::validFile(p) ) {
 			DyldInfoPrinter<ppc64>::make(p, length, path, false);
 		}
+#endif
 		else if ( DyldInfoPrinter<x86_64>::validFile(p) ) {
 			DyldInfoPrinter<x86_64>::make(p, length, path, false);
 		}
+#if SUPPORT_ARCH_arm_any
 		else if ( DyldInfoPrinter<arm>::validFile(p) ) {
 			DyldInfoPrinter<arm>::make(p, length, path, false);
 		}
+#endif
 		else {
 			throw "not a known file type";
 		}
@@ -2069,15 +2108,21 @@ int main(int argc, const char* argv[])
 			if ( arg[0] == '-' ) {
 				if ( strcmp(arg, "-arch") == 0 ) {
 					const char* arch = ++i<argc? argv[i]: "";
-					if ( strcmp(arch, "ppc64") == 0 )
+					if (0) { }
+#if SUPPORT_ARCH_ppc64
+					else if ( strcmp(arch, "ppc64") == 0 )
 						sPreferredArch = CPU_TYPE_POWERPC64;
+#endif
+#if SUPPORT_ARCH_ppc
 					else if ( strcmp(arch, "ppc") == 0 )
 						sPreferredArch = CPU_TYPE_POWERPC;
+#endif
 					else if ( strcmp(arch, "i386") == 0 )
 						sPreferredArch = CPU_TYPE_I386;
 					else if ( strcmp(arch, "x86_64") == 0 )
 						sPreferredArch = CPU_TYPE_X86_64;
 					else {
+#if SUPPORT_ARCH_arm_any
 						bool found = false;
 						for (const ARMSubType* t=ARMSubTypes; t->subTypeName != NULL; ++t) {
 							if ( strcmp(t->subTypeName,arch) == 0 ) {
@@ -2088,6 +2133,7 @@ int main(int argc, const char* argv[])
 							}
 						}
 						if ( !found )
+#endif
 							throwf("unknown architecture %s", arch);
 					}
 				}

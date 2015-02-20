@@ -39,6 +39,7 @@
 
 #include "FileAbstraction.hpp"
 
+#include "configure.h"
 
 // stuff that will eventually go away once newer cctools headers are widespread
 #ifndef LC_LOAD_UPWARD_DYLIB

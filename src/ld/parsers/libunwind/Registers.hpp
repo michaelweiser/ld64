@@ -459,6 +459,7 @@ inline void Registers_x86_64::setVectorRegister(int num, v128 value)
 }
 
 
+#if SUPPORT_ARCH_ppc
 ///
 /// Registers_ppc holds the register state of a thread in a 32-bit PowerPC process.  
 ///
@@ -1037,6 +1038,7 @@ inline const char* Registers_ppc::getRegisterName(int regNum)
 
 
 }
+#endif
 
 
 } // namespace libunwind 

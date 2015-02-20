@@ -104,11 +104,17 @@ private:
 };
 
 
+#if SUPPORT_ARCH_ppc
 template <>	 const char*	UnwindPrinter<ppc>::archName()		{ return "ppc"; }
+#endif
+#if SUPPORT_ARCH_ppc64
 template <>	 const char*	UnwindPrinter<ppc64>::archName()	{ return "ppc64"; }
+#endif
 template <>	 const char*	UnwindPrinter<x86>::archName()		{ return "i386"; }
 template <>	 const char*	UnwindPrinter<x86_64>::archName()	{ return "x86_64"; }
+#if SUPPORT_ARCH_arm_any
 template <>	 const char*	UnwindPrinter<arm>::archName()		{ return "arm"; }
+#endif
 
 
 template <>

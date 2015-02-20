@@ -519,25 +519,40 @@ uint32_t HeaderAndLoadCommandsAtom<A>::flags() const
 	return bits;
 }
 
+#if SUPPORT_ARCH_ppc
 template <> uint32_t HeaderAndLoadCommandsAtom<ppc>::magic() const		{ return MH_MAGIC; }
+#endif
+#if SUPPORT_ARCH_ppc64
 template <> uint32_t HeaderAndLoadCommandsAtom<ppc64>::magic() const		{ return MH_MAGIC_64; }
+#endif
 template <> uint32_t HeaderAndLoadCommandsAtom<x86>::magic() const		{ return MH_MAGIC; }
 template <> uint32_t HeaderAndLoadCommandsAtom<x86_64>::magic() const	{ return MH_MAGIC_64; }
+#if SUPPORT_ARCH_arm_any
 template <> uint32_t HeaderAndLoadCommandsAtom<arm>::magic() const		{ return MH_MAGIC; }
+#endif
 
+#if SUPPORT_ARCH_ppc
 template <> uint32_t HeaderAndLoadCommandsAtom<ppc>::cpuType() const	{ return CPU_TYPE_POWERPC; }
+#endif
+#if SUPPORT_ARCH_ppc64
 template <> uint32_t HeaderAndLoadCommandsAtom<ppc64>::cpuType() const	{ return CPU_TYPE_POWERPC64; }
+#endif
 template <> uint32_t HeaderAndLoadCommandsAtom<x86>::cpuType() const	{ return CPU_TYPE_I386; }
 template <> uint32_t HeaderAndLoadCommandsAtom<x86_64>::cpuType() const	{ return CPU_TYPE_X86_64; }
+#if SUPPORT_ARCH_arm_any
 template <> uint32_t HeaderAndLoadCommandsAtom<arm>::cpuType() const	{ return CPU_TYPE_ARM; }
+#endif
 
 
+#if SUPPORT_ARCH_ppc
 template <>
 uint32_t HeaderAndLoadCommandsAtom<ppc>::cpuSubType() const
 {
 	return _state.cpuSubType;
 }
+#endif
 
+#if SUPPORT_ARCH_ppc64
 template <>
 uint32_t HeaderAndLoadCommandsAtom<ppc64>::cpuSubType() const
 {
@@ -546,6 +561,7 @@ uint32_t HeaderAndLoadCommandsAtom<ppc64>::cpuSubType() const
 	else
 		return CPU_SUBTYPE_POWERPC_ALL;
 }
+#endif
 
 template <>
 uint32_t HeaderAndLoadCommandsAtom<x86>::cpuSubType() const
@@ -562,11 +578,13 @@ uint32_t HeaderAndLoadCommandsAtom<x86_64>::cpuSubType() const
 		return CPU_SUBTYPE_X86_64_ALL;
 }
 
+#if SUPPORT_ARCH_arm_any
 template <>
 uint32_t HeaderAndLoadCommandsAtom<arm>::cpuSubType() const
 {
 	return _state.cpuSubType;
 }
+#endif
 
 
 
@@ -983,8 +1001,10 @@ template <typename A>
 uint8_t* HeaderAndLoadCommandsAtom<A>::copyRoutinesLoadCommand(uint8_t* p) const
 {
 	pint_t initAddr = _state.entryPoint->finalAddress(); 
+#if SUPPORT_ARCH_arm_any
 	if ( _state.entryPoint->isThumb() )
 		initAddr |= 1ULL;
+#endif
 	macho_routines_command<P>* cmd = (macho_routines_command<P>*)p;
 	cmd->set_cmd(macho_routines_command<P>::CMD);
 	cmd->set_cmdsize(sizeof(macho_routines_command<P>));
@@ -1036,6 +1056,7 @@ uint8_t* HeaderAndLoadCommandsAtom<A>::copyVersionLoadCommand(uint8_t* p) const
 }
 
 
+#if SUPPORT_ARCH_ppc
 template <>
 uint32_t HeaderAndLoadCommandsAtom<ppc>::threadLoadCommandSize() const
 {
@@ -1058,7 +1079,9 @@ uint8_t* HeaderAndLoadCommandsAtom<ppc>::copyThreadsLoadCommand(uint8_t* p) cons
 		cmd->set_thread_register(3, _options.customStackAddr());	// r1
 	return p + threadLoadCommandSize();
 }
+#endif
 
+#if SUPPORT_ARCH_ppc64
 template <>
 uint32_t HeaderAndLoadCommandsAtom<ppc64>::threadLoadCommandSize() const
 {
@@ -1080,6 +1103,7 @@ uint8_t* HeaderAndLoadCommandsAtom<ppc64>::copyThreadsLoadCommand(uint8_t* p) co
 		cmd->set_thread_register(3, _options.customStackAddr());	// r1
 	return p + threadLoadCommandSize();
 }
+#endif
 
 template <>
 uint32_t HeaderAndLoadCommandsAtom<x86>::threadLoadCommandSize() const
@@ -1125,6 +1149,7 @@ uint8_t* HeaderAndLoadCommandsAtom<x86_64>::copyThreadsLoadCommand(uint8_t* p) c
 	return p + threadLoadCommandSize();
 }
 
+#if SUPPORT_ARCH_arm_any
 template <>
 uint32_t HeaderAndLoadCommandsAtom<arm>::threadLoadCommandSize() const
 {
@@ -1148,6 +1173,7 @@ uint8_t* HeaderAndLoadCommandsAtom<arm>::copyThreadsLoadCommand(uint8_t* p) cons
 		cmd->set_thread_register(13, _options.customStackAddr());	// sp
 	return p + threadLoadCommandSize();
 }
+#endif
 
 template <typename A>
 uint8_t* HeaderAndLoadCommandsAtom<A>::copyEncryptionLoadCommand(uint8_t* p) const

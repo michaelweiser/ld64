@@ -251,14 +251,18 @@ bool Parser::validFile(const uint8_t* fileContent, uint64_t fileLength, cpu_type
 			return ::lto_module_is_object_file_in_memory_for_target(fileContent, fileLength, "i386-");
 		case CPU_TYPE_X86_64:
 			return ::lto_module_is_object_file_in_memory_for_target(fileContent, fileLength, "x86_64-");
+#if SUPPORT_ARCH_arm_any
 		case CPU_TYPE_ARM:
 			for (const ARMSubType* t=ARMSubTypes; t->subTypeName != NULL; ++t) {
 				if ( subarch == t->subType )
 					return ::lto_module_is_object_file_in_memory_for_target(fileContent, fileLength, t->llvmTriplePrefix);
 			}
 			break;
+#endif
+#if SUPPORT_ARCH_ppc
 		case CPU_TYPE_POWERPC:
 			return ::lto_module_is_object_file_in_memory_for_target(fileContent, fileLength, "powerpc-");
+#endif
 	}
 	return false;
 }
@@ -268,18 +272,22 @@ const char* Parser::fileKind(const uint8_t* p, uint64_t fileLength)
 	if ( (p[0] == 0xDE) && (p[1] == 0xC0) && (p[2] == 0x17) && (p[3] == 0x0B) ) {
 		uint32_t arch = LittleEndian::get32(*((uint32_t*)(&p[16])));
 		switch (arch) {
+#if SUPPORT_ARCH_ppc
 			case CPU_TYPE_POWERPC:
 				return "ppc";
+#endif
 			case CPU_TYPE_I386:
 				return "i386";
 			case CPU_TYPE_X86_64:
 				return "x86_64";
+#if SUPPORT_ARCH_arm_any
 			case CPU_TYPE_ARM:
 				for (const ARMSubType* t=ARMSubTypes; t->subTypeName != NULL; ++t) {
 					if ( ::lto_module_is_object_file_in_memory_for_target(p, fileLength, t->llvmTriplePrefix) )
 						return t->subTypeName;
 				}
 				return "arm";
+#endif
 		}
 		return "unknown bitcode architecture";
 	}
