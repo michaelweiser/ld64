@@ -145,6 +145,7 @@ private:
 												const Registers_x86_64&, const typename CFI_Parser<A>::PrologInfo& prolog,
 												char warningBuffer[1024]);
 	
+#if SUPPORT_ARCH_ppc
 	// ppc specific variants
 	static int    lastRestoreReg(const Registers_ppc&);
 	static bool   isReturnAddressRegister(int regNum, const Registers_ppc&);
@@ -153,7 +154,9 @@ private:
 	static compact_unwind_encoding_t createCompactEncodingFromProlog(A& addressSpace, pint_t funcAddr,
 												const Registers_ppc&, const typename CFI_Parser<A>::PrologInfo& prolog,
 												char warningBuffer[1024]);
+#endif
 												
+#if SUPPORT_ARCH_arm64
 	// arm64 specific variants
 	static bool   isReturnAddressRegister(int regNum, const Registers_arm64&);
 	static int    lastRestoreReg(const Registers_arm64&);
@@ -164,6 +167,7 @@ private:
 	static compact_unwind_encoding_t createCompactEncodingFromProlog(A& addressSpace, pint_t funcAddr,
 												const Registers_arm64&, const typename CFI_Parser<A>::PrologInfo& prolog,
 												char warningBuffer[1024]);
+#endif
 	
 };
 
@@ -1721,6 +1725,7 @@ compact_unwind_encoding_t DwarfInstructions<A,R>::createCompactEncodingFromProlo
 
 
 
+#if SUPPORT_ARCH_ppc
 //
 //	ppc specific functions
 //
@@ -1765,9 +1770,11 @@ compact_unwind_encoding_t DwarfInstructions<A,R>::createCompactEncodingFromProlo
 	warningBuffer[0] = '\0';
 	return UNWIND_X86_MODE_DWARF;
 }
+#endif
 
 
 
+#if SUPPORT_ARCH_arm64
 //
 // arm64 specific functions
 //
@@ -1957,6 +1964,7 @@ compact_unwind_encoding_t DwarfInstructions<A,R>::createCompactEncodingFromProlo
 
   return encoding;
 }
+#endif
 
 } // namespace libunwind
 

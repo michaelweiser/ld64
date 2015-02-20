@@ -1016,8 +1016,11 @@ void ExportInfoAtom<A>::encode() const
 		else {
 			if ( (atom->definition() == ld::Atom::definitionRegular) && (atom->combine() == ld::Atom::combineByName) )
 				flags |= EXPORT_SYMBOL_FLAGS_WEAK_DEFINITION;
+
+#if SUPPORT_ARCH_arm_any
 			if ( atom->isThumb() )
 				address |= 1;
+#endif
 			if ( atom->contentType() == ld::Atom::typeResolver ) {
 				flags |= EXPORT_SYMBOL_FLAGS_STUB_AND_RESOLVER;
 				// set normal lookup to return stub address
@@ -1025,8 +1028,10 @@ void ExportInfoAtom<A>::encode() const
 				other = address;
 				const ld::Atom* stub = stubForResolverFunction(atom);
 				address = stub->finalAddress() - imageBaseAddress;
+#if SUPPORT_ARCH_arm_any
 				if ( stub->isThumb() )
 					address |= 1;
+#endif
 			}
 			entry.name = atom->name();
 			entry.flags = flags;
@@ -1072,12 +1077,18 @@ private:
 
 	mutable std::vector<uint64_t>				_32bitPointerLocations;
 	mutable std::vector<uint64_t>				_64bitPointerLocations;
+#if SUPPORT_ARCH_ppc
 	mutable std::vector<uint64_t>				_ppcHi16Locations;
+#endif
+#if SUPPORT_ARCH_arm_any
 	mutable std::vector<uint64_t>				_thumbLo16Locations;
 	mutable std::vector<uint64_t>				_thumbHi16Locations[16];
 	mutable std::vector<uint64_t>				_armLo16Locations;
 	mutable std::vector<uint64_t>				_armHi16Locations[16];
+#endif
+#if SUPPORT_ARCH_arm64
 	mutable std::vector<uint64_t>				_adrpLocations;
+#endif
 
 
 	static ld::Section			_s_section;
@@ -1132,6 +1143,7 @@ void SplitSegInfoAtom<x86>::addSplitSegInfo(uint64_t address, ld::Fixup::Kind ki
 	}
 }
 
+#if SUPPORT_ARCH_arm_any
 template <>
 void SplitSegInfoAtom<arm>::addSplitSegInfo(uint64_t address, ld::Fixup::Kind kind, uint32_t extra) const
 {
@@ -1158,6 +1170,7 @@ void SplitSegInfoAtom<arm>::addSplitSegInfo(uint64_t address, ld::Fixup::Kind ki
 			break;
 	}
 }
+#endif
 
 #if SUPPORT_ARCH_arm64
 template <>
@@ -1188,6 +1201,7 @@ void SplitSegInfoAtom<arm64>::addSplitSegInfo(uint64_t address, ld::Fixup::Kind 
 }
 #endif
 
+#if SUPPORT_ARCH_ppc
 template <>
 void SplitSegInfoAtom<ppc>::addSplitSegInfo(uint64_t address, ld::Fixup::Kind kind, uint32_t extra) const
 {
@@ -1203,7 +1217,9 @@ void SplitSegInfoAtom<ppc>::addSplitSegInfo(uint64_t address, ld::Fixup::Kind ki
 			break;
 	}
 }
+#endif
 
+#if SUPPORT_ARCH_ppc64
 template <>
 void SplitSegInfoAtom<ppc64>::addSplitSegInfo(uint64_t address, ld::Fixup::Kind kind, uint32_t extra) const
 {
@@ -1216,6 +1232,7 @@ void SplitSegInfoAtom<ppc64>::addSplitSegInfo(uint64_t address, ld::Fixup::Kind 
 			break;
 	}
 }
+#endif
 
 template <typename A>
 void SplitSegInfoAtom<A>::uleb128EncodeAddresses(const std::vector<uint64_t>& locations) const
@@ -1271,6 +1288,7 @@ void SplitSegInfoAtom<A>::encode() const
 		this->_encodedData.append_byte(0); // terminator
 	}
 
+#if SUPPORT_ARCH_arm64
 	if ( _adrpLocations.size() != 0 ) {
 		this->_encodedData.append_byte(3);
 		//fprintf(stderr, "type 3:\n");
@@ -1278,7 +1296,9 @@ void SplitSegInfoAtom<A>::encode() const
 		this->uleb128EncodeAddresses(_adrpLocations);
 		this->_encodedData.append_byte(0); // terminator
 	}
+#endif
 
+#if SUPPORT_ARCH_ppc
 	if ( _ppcHi16Locations.size() != 0 ) {
 		this->_encodedData.append_byte(3);
 		//fprintf(stderr, "type 3:\n");
@@ -1286,7 +1306,9 @@ void SplitSegInfoAtom<A>::encode() const
 		this->uleb128EncodeAddresses(_ppcHi16Locations);
 		this->_encodedData.append_byte(0); // terminator
 	}
+#endif
 
+#if SUPPORT_ARCH_arm_any
 	if ( _thumbLo16Locations.size() != 0 ) {
 		this->_encodedData.append_byte(5);
 		//fprintf(stderr, "type 5:\n");
@@ -1322,6 +1344,7 @@ void SplitSegInfoAtom<A>::encode() const
 			this->_encodedData.append_byte(0); // terminator
 		}
 	}
+#endif
 
 	// always add zero byte to mark end
 	this->_encodedData.append_byte(0);
@@ -1334,7 +1357,9 @@ void SplitSegInfoAtom<A>::encode() const
 	// clean up temporaries
 	_32bitPointerLocations.clear();
 	_64bitPointerLocations.clear();
+#if SUPPORT_ARCH_ppc
 	_ppcHi16Locations.clear();
+#endif
 }
 
 template <typename A>
@@ -1383,8 +1408,10 @@ void FunctionStartsAtom<A>::encode() const
 				if ( atom->size() == 0 )
 					continue;
 				uint64_t nextAddr = atom->finalAddress();
+#if SUPPORT_ARCH_arm_any
 				if ( atom->isThumb() )
 					nextAddr |= 1; 
+#endif
 				uint64_t delta = nextAddr - addr;
 				if ( delta != 0 )
 					this->_encodedData.append_uleb128(delta);
