@@ -174,6 +174,7 @@ private:
 
 
 
+#if SUPPORT_ARCH_ppc
 template <>
 bool MachOChecker<ppc>::validFile(const uint8_t* fileContent)
 {	
@@ -191,7 +192,9 @@ bool MachOChecker<ppc>::validFile(const uint8_t* fileContent)
 	}
 	return false;
 }
+#endif
 
+#if SUPPORT_ARCH_ppc64
 template <>
 bool MachOChecker<ppc64>::validFile(const uint8_t* fileContent)
 {	
@@ -209,6 +212,7 @@ bool MachOChecker<ppc64>::validFile(const uint8_t* fileContent)
 	}
 	return false;
 }
+#endif
 
 template <>
 bool MachOChecker<x86>::validFile(const uint8_t* fileContent)
@@ -246,6 +250,7 @@ bool MachOChecker<x86_64>::validFile(const uint8_t* fileContent)
 	return false;
 }
 
+#if SUPPORT_ARCH_arm_any
 template <>
 bool MachOChecker<arm>::validFile(const uint8_t* fileContent)
 {	
@@ -263,25 +268,36 @@ bool MachOChecker<arm>::validFile(const uint8_t* fileContent)
 	}
 	return false;
 }
+#endif
 
+#if SUPPORT_ARCH_ppc
 template <> uint8_t MachOChecker<ppc>::loadCommandSizeMask()	{ return 0x03; }
+#endif
+#if SUPPORT_ARCH_ppc64
 template <> uint8_t MachOChecker<ppc64>::loadCommandSizeMask()	{ return 0x07; }
+#endif
 template <> uint8_t MachOChecker<x86>::loadCommandSizeMask()	{ return 0x03; }
 template <> uint8_t MachOChecker<x86_64>::loadCommandSizeMask() { return 0x07; }
+#if SUPPORT_ARCH_arm_any
 template <> uint8_t MachOChecker<arm>::loadCommandSizeMask()	{ return 0x03; }
+#endif
 
 
+#if SUPPORT_ARCH_ppc
 template <>
 ppc::P::uint_t MachOChecker<ppc>::getInitialStackPointer(const macho_thread_command<ppc::P>* threadInfo)
 {
 	return threadInfo->thread_register(3);
 }
+#endif
 
+#if SUPPORT_ARCH_ppc64
 template <>
 ppc64::P::uint_t MachOChecker<ppc64>::getInitialStackPointer(const macho_thread_command<ppc64::P>* threadInfo)
 {
 	return threadInfo->thread_register(3);
 }
+#endif
 
 template <>
 x86::P::uint_t MachOChecker<x86>::getInitialStackPointer(const macho_thread_command<x86::P>* threadInfo)
@@ -295,27 +311,33 @@ x86_64::P::uint_t MachOChecker<x86_64>::getInitialStackPointer(const macho_threa
 	return threadInfo->thread_register(7);
 }
 
+#if SUPPORT_ARCH_arm_any
 template <>
 arm::P::uint_t MachOChecker<arm>::getInitialStackPointer(const macho_thread_command<arm::P>* threadInfo)
 {
 	return threadInfo->thread_register(13);
 }
+#endif
 
 
 
 
 
+#if SUPPORT_ARCH_ppc
 template <>
 ppc::P::uint_t MachOChecker<ppc>::getEntryPoint(const macho_thread_command<ppc::P>* threadInfo)
 {
 	return threadInfo->thread_register(0);
 }
+#endif
 
+#if SUPPORT_ARCH_ppc64
 template <>
 ppc64::P::uint_t MachOChecker<ppc64>::getEntryPoint(const macho_thread_command<ppc64::P>* threadInfo)
 {
 	return threadInfo->thread_register(0);
 }
+#endif
 
 template <>
 x86::P::uint_t MachOChecker<x86>::getEntryPoint(const macho_thread_command<x86::P>* threadInfo)
@@ -329,11 +351,13 @@ x86_64::P::uint_t MachOChecker<x86_64>::getEntryPoint(const macho_thread_command
 	return threadInfo->thread_register(16);
 }
 
+#if SUPPORT_ARCH_arm_any
 template <>
 arm::P::uint_t MachOChecker<arm>::getEntryPoint(const macho_thread_command<arm::P>* threadInfo)
 {
 	return threadInfo->thread_register(15);
 }
+#endif
 
 
 template <typename A>
@@ -950,6 +974,7 @@ void MachOChecker<A>::checkInitTerms()
 }
 
 
+#if SUPPORT_ARCH_ppc
 template <>
 ppc::P::uint_t MachOChecker<ppc>::relocBase()
 {
@@ -958,7 +983,9 @@ ppc::P::uint_t MachOChecker<ppc>::relocBase()
 	else
 		return fFirstSegment->vmaddr();
 }
+#endif
 
+#if SUPPORT_ARCH_ppc64
 template <>
 ppc64::P::uint_t MachOChecker<ppc64>::relocBase()
 {
@@ -967,6 +994,7 @@ ppc64::P::uint_t MachOChecker<ppc64>::relocBase()
 	else
 		return fFirstSegment->vmaddr();
 }
+#endif
 
 template <>
 x86::P::uint_t MachOChecker<x86>::relocBase()
@@ -984,6 +1012,7 @@ x86_64::P::uint_t MachOChecker<x86_64>::relocBase()
 	return fFirstWritableSegment->vmaddr();
 }
 
+#if SUPPORT_ARCH_arm_any
 template <>
 arm::P::uint_t MachOChecker<arm>::relocBase()
 {
@@ -992,6 +1021,7 @@ arm::P::uint_t MachOChecker<arm>::relocBase()
 	else
 		return fFirstSegment->vmaddr();
 }
+#endif
 
 
 template <typename A>
@@ -1024,6 +1054,7 @@ bool MachOChecker<A>::addressInWritableSegment(pint_t address)
 }
 
 
+#if SUPPORT_ARCH_ppc
 template <>
 void MachOChecker<ppc>::checkExternalReloation(const macho_relocation_info<P>* reloc)
 {
@@ -1039,7 +1070,9 @@ void MachOChecker<ppc>::checkExternalReloation(const macho_relocation_info<P>* r
 		throw "external relocation address not in writable segment";
 	// FIX: check r_symbol
 }
+#endif
 
+#if SUPPORT_ARCH_ppc64
 template <>
 void MachOChecker<ppc64>::checkExternalReloation(const macho_relocation_info<P>* reloc)
 {
@@ -1055,6 +1088,7 @@ void MachOChecker<ppc64>::checkExternalReloation(const macho_relocation_info<P>*
 		throw "external relocation address not in writable segment";
 	// FIX: check r_symbol
 }
+#endif
 
 template <>
 void MachOChecker<x86>::checkExternalReloation(const macho_relocation_info<P>* reloc)
@@ -1108,6 +1142,7 @@ void MachOChecker<arm>::checkExternalReloation(const macho_relocation_info<P>* r
 #endif
 
 
+#if SUPPORT_ARCH_ppc
 template <>
 void MachOChecker<ppc>::checkLocalReloation(const macho_relocation_info<P>* reloc)
 {
@@ -1126,8 +1161,10 @@ void MachOChecker<ppc>::checkLocalReloation(const macho_relocation_info<P>* relo
 			throwf("local relocation address 0x%08X not in writable segment", reloc->r_address());
 	}
 }
+#endif
 
 
+#if SUPPORT_ARCH_ppc64
 template <>
 void MachOChecker<ppc64>::checkLocalReloation(const macho_relocation_info<P>* reloc)
 {
@@ -1142,6 +1179,7 @@ void MachOChecker<ppc64>::checkLocalReloation(const macho_relocation_info<P>* re
 	if ( ! this->addressInWritableSegment(reloc->r_address() + this->relocBase()) )
 		throw "local relocation address not in writable segment";
 }
+#endif
 
 template <>
 void MachOChecker<x86>::checkLocalReloation(const macho_relocation_info<P>* reloc)
@@ -1552,24 +1590,28 @@ static void check(const char* path)
 				unsigned int cputype = OSSwapBigToHostInt32(archs[i].cputype);
 
 				switch(cputype) {
+#if SUPPORT_ARCH_ppc
 				case CPU_TYPE_POWERPC:
 					if ( MachOChecker<ppc>::validFile(p + offset) )
 						MachOChecker<ppc>::make(p + offset, size, path);
 					else
 						throw "in universal file, ppc slice does not contain ppc mach-o";
 					break;
+#endif
 				case CPU_TYPE_I386:
 					if ( MachOChecker<x86>::validFile(p + offset) )
 						MachOChecker<x86>::make(p + offset, size, path);
 					else
 						throw "in universal file, i386 slice does not contain i386 mach-o";
 					break;
+#if SUPPORT_ARCH_ppc64
 				case CPU_TYPE_POWERPC64:
 					if ( MachOChecker<ppc64>::validFile(p + offset) )
 						MachOChecker<ppc64>::make(p + offset, size, path);
 					else
 						throw "in universal file, ppc64 slice does not contain ppc64 mach-o";
 					break;
+#endif
 				case CPU_TYPE_X86_64:
 					if ( MachOChecker<x86_64>::validFile(p + offset) )
 						MachOChecker<x86_64>::make(p + offset, size, path);
@@ -1592,12 +1634,16 @@ static void check(const char* path)
 		else if ( MachOChecker<x86>::validFile(p) ) {
 			MachOChecker<x86>::make(p, length, path);
 		}
+#if SUPPORT_ARCH_ppc
 		else if ( MachOChecker<ppc>::validFile(p) ) {
 			MachOChecker<ppc>::make(p, length, path);
 		}
+#endif
+#if SUPPORT_ARCH_ppc64
 		else if ( MachOChecker<ppc64>::validFile(p) ) {
 			MachOChecker<ppc64>::make(p, length, path);
 		}
+#endif
 		else if ( MachOChecker<x86_64>::validFile(p) ) {
 			MachOChecker<x86_64>::make(p, length, path);
 		}
