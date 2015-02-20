@@ -147,21 +147,27 @@ MultiArchRebaser::MultiArchRebaser(const char* path, bool writable)
 			uint32_t fileOffset = OSSwapBigToHostInt32(archs[i].offset);
 			try {
 				switch ( OSSwapBigToHostInt32(archs[i].cputype) ) {
+#if SUPPORT_ARCH_ppc
 					case CPU_TYPE_POWERPC:
 						fRebasers.push_back(new Rebaser<ppc>(&p[fileOffset]));
 						break;
+#endif
+#if SUPPORT_ARCH_ppc64
 					case CPU_TYPE_POWERPC64:
 						fRebasers.push_back(new Rebaser<ppc64>(&p[fileOffset]));
 						break;
+#endif
 					case CPU_TYPE_I386:
 						fRebasers.push_back(new Rebaser<x86>(&p[fileOffset]));
 						break;
 					case CPU_TYPE_X86_64:
 						fRebasers.push_back(new Rebaser<x86_64>(&p[fileOffset]));
 						break;
+#if SUPPORT_ARCH_arm_any
 					case CPU_TYPE_ARM:
 						fRebasers.push_back(new Rebaser<arm>(&p[fileOffset]));
 						break;
+#endif
 					default:
 						throw "unknown file format";
 				}
@@ -173,21 +179,28 @@ MultiArchRebaser::MultiArchRebaser(const char* path, bool writable)
 	}
 	else {
 		try {
-			if ( (OSSwapBigToHostInt32(mh->magic) == MH_MAGIC) && (OSSwapBigToHostInt32(mh->cputype) == CPU_TYPE_POWERPC)) {
+			if (0) { }
+#if SUPPORT_ARCH_ppc
+			else if ( (OSSwapBigToHostInt32(mh->magic) == MH_MAGIC) && (OSSwapBigToHostInt32(mh->cputype) == CPU_TYPE_POWERPC)) {
 				fRebasers.push_back(new Rebaser<ppc>(mh));
 			}
+#endif
+#if SUPPORT_ARCH_ppc64
 			else if ( (OSSwapBigToHostInt32(mh->magic) == MH_MAGIC_64) && (OSSwapBigToHostInt32(mh->cputype) == CPU_TYPE_POWERPC64)) {
 				fRebasers.push_back(new Rebaser<ppc64>(mh));
 			}
+#endif
 			else if ( (OSSwapLittleToHostInt32(mh->magic) == MH_MAGIC) && (OSSwapLittleToHostInt32(mh->cputype) == CPU_TYPE_I386)) {
 				fRebasers.push_back(new Rebaser<x86>(mh));
 			}
 			else if ( (OSSwapLittleToHostInt32(mh->magic) == MH_MAGIC_64) && (OSSwapLittleToHostInt32(mh->cputype) == CPU_TYPE_X86_64)) {
 				fRebasers.push_back(new Rebaser<x86_64>(mh));
 			}
+#if SUPPORT_ARCH_arm_any
 			else if ( (OSSwapLittleToHostInt32(mh->magic) == MH_MAGIC) && (OSSwapLittleToHostInt32(mh->cputype) == CPU_TYPE_ARM)) {
 				fRebasers.push_back(new Rebaser<arm>(mh));
 			}
+#endif
 			else {
 				throw "unknown file format";
 			}
@@ -231,11 +244,17 @@ Rebaser<A>::Rebaser(const void* machHeader)
 		
 }
 
+#if SUPPORT_ARCH_ppc
 template <> cpu_type_t Rebaser<ppc>::getArchitecture()    const { return CPU_TYPE_POWERPC; }
+#endif
+#if SUPPORT_ARCH_ppc64
 template <> cpu_type_t Rebaser<ppc64>::getArchitecture()  const { return CPU_TYPE_POWERPC64; }
+#endif
 template <> cpu_type_t Rebaser<x86>::getArchitecture()    const { return CPU_TYPE_I386; }
 template <> cpu_type_t Rebaser<x86_64>::getArchitecture() const { return CPU_TYPE_X86_64; }
+#if SUPPORT_ARCH_arm_any
 template <> cpu_type_t Rebaser<arm>::getArchitecture() const { return CPU_TYPE_ARM; }
+#endif
 
 template <typename A>
 uint64_t Rebaser<A>::getBaseAddress() const
@@ -640,6 +659,7 @@ void Rebaser<x86_64>::doLocalRelocation(const macho_relocation_info<x86_64::P>* 
 	}
 }
 
+#if SUPPORT_ARCH_ppc
 template <>
 void Rebaser<ppc>::doLocalRelocation(const macho_relocation_info<P>* reloc)
 {
@@ -658,6 +678,7 @@ void Rebaser<ppc>::doLocalRelocation(const macho_relocation_info<P>* reloc)
 		throw "cannot rebase final linked image with scattered relocations";
 	}
 }
+#endif
 
 template <>
 void Rebaser<x86>::doLocalRelocation(const macho_relocation_info<P>* reloc)
@@ -724,6 +745,7 @@ void Rebaser<A>::setRelocBase()
 	//fprintf(stderr, "fOrignalVMRelocBaseAddress=0x%08X\n", fOrignalVMRelocBaseAddress);
 }
 
+#if SUPPORT_ARCH_ppc64
 template <>
 void Rebaser<ppc64>::setRelocBase()
 {
@@ -749,6 +771,7 @@ void Rebaser<ppc64>::setRelocBase()
 	// just use base address
 	fOrignalVMRelocBaseAddress = this->getBaseAddress();
 }
+#endif
 
 template <>
 void Rebaser<x86_64>::setRelocBase()
@@ -871,16 +894,22 @@ static void setSizes(fileInfo& info, const std::set<cpu_type_t>& onlyArchs)
 static const char* nameForArch(cpu_type_t arch)
 {
 	switch( arch ) {
+#if SUPPORT_ARCH_ppc
 		case CPU_TYPE_POWERPC:
 			return "ppc";
+#endif
+#if SUPPORT_ARCH_ppc64
 		case CPU_TYPE_POWERPC64:
 			return "ppca64";
+#endif
 		case CPU_TYPE_I386:
 			return "i386";
 		case CPU_TYPE_X86_64:
 			return "x86_64";
+#if SUPPORT_ARCH_arm_any
 		case CPU_TYPE_ARM:
 			return "arm";
+#endif
 	}
 	return "unknown";
 }
@@ -959,7 +988,11 @@ static uint64_t startAddress(cpu_type_t arch, std::vector<fileInfo>& files, uint
 		return highAddress - totalSize;
 	}
 	else {
-		if ( (arch == CPU_TYPE_I386) || (arch == CPU_TYPE_POWERPC) ) {
+		if ( (arch == CPU_TYPE_I386)
+#if SUPPORT_ARCH_ppc
+				|| (arch == CPU_TYPE_POWERPC)
+#endif
+				) {
 			// place dylibs below dyld
 			uint64_t topAddr = 0x8FE00000;
 			uint64_t totalSize = totalVMSize(arch, files);
@@ -967,12 +1000,15 @@ static uint64_t startAddress(cpu_type_t arch, std::vector<fileInfo>& files, uint
 				throwf("total size of images (0x%X) does not fit below 0x8FE00000", totalSize);
 			return topAddr - totalSize;
 		}
+#if SUPPORT_ARCH_ppc64
 		else if ( arch == CPU_TYPE_POWERPC64 ) {
 			return 0x200000000ULL;
 		}
+#endif
 		else if ( arch == CPU_TYPE_X86_64 ) {
 			return 0x200000000ULL;
 		}
+#if SUPPORT_ARCH_arm_any
 		else if ( arch == CPU_TYPE_ARM ) {
 			// place dylibs below dyld
 			uint64_t topAddr = 0x2FE00000;
@@ -981,6 +1017,7 @@ static uint64_t startAddress(cpu_type_t arch, std::vector<fileInfo>& files, uint
 				throwf("total size of images (0x%X) does not fit below 0x2FE00000", totalSize);
 			return topAddr - totalSize;
 		}
+#endif
 		else
 			throw "unknown architecture";
 	}
@@ -1043,11 +1080,17 @@ int main(int argc, const char* argv[])
 		
 		// use all architectures if no restrictions specified
 		if ( onlyArchs.size() == 0 ) {
+#if SUPPORT_ARCH_ppc
 			onlyArchs.insert(CPU_TYPE_POWERPC);
+#endif
+#if SUPPORT_ARCH_ppc64
 			onlyArchs.insert(CPU_TYPE_POWERPC64);
+#endif
 			onlyArchs.insert(CPU_TYPE_I386);
 			onlyArchs.insert(CPU_TYPE_X86_64);
+#if SUPPORT_ARCH_arm_any
 			onlyArchs.insert(CPU_TYPE_ARM);
+#endif
 		}
 		
 		// scan files and collect sizes
