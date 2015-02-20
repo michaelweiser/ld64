@@ -60,6 +60,7 @@ public:
 static bool _s_log = false;
 static ld::Section _s_text_section("__TEXT", "__text", ld::Section::typeCode);
 
+#if SUPPORT_ARCH_ppc
 class PPCBranchIslandAtom : public ld::Atom {
 public:
 	PPCBranchIslandAtom(const char* nm, const ld::Atom* target, TargetAndOffset finalTarget)
@@ -96,6 +97,7 @@ private:
 	const ld::Atom*		_target;
 	TargetAndOffset		_finalTarget;
 };
+#endif
 
 #if SUPPORT_ARCH_arm64
 
@@ -131,6 +133,7 @@ private:
 #endif
 
 
+#if SUPPORT_ARCH_arm_any
 class ARMtoARMBranchIslandAtom : public ld::Atom {
 public:
 											ARMtoARMBranchIslandAtom(const char* nm, const ld::Atom* target, TargetAndOffset finalTarget)
@@ -304,6 +307,7 @@ private:
 	const char*								_name;
 	TargetAndOffset							_finalTarget;
 };
+#endif
 
 
 static ld::Atom* makeBranchIsland(const Options& opts, ld::Fixup::Kind kind, int islandRegion, const ld::Atom* nextTarget, 
@@ -321,10 +325,13 @@ static ld::Atom* makeBranchIsland(const Options& opts, ld::Fixup::Kind kind, int
 	}
 
 	switch ( kind ) {
+#if SUPPORT_ARCH_ppc
 		case ld::Fixup::kindStorePPCBranch24:
 		case ld::Fixup::kindStoreTargetAddressPPCBranch24:
 			return new PPCBranchIslandAtom(name, nextTarget, finalTarget);
 			break;
+#endif
+#if SUPPORT_ARCH_arm_any
 		case ld::Fixup::kindStoreARMBranch24:
 		case ld::Fixup::kindStoreThumbBranch22:
 		case ld::Fixup::kindStoreTargetAddressARMBranch24:
@@ -347,6 +354,7 @@ static ld::Atom* makeBranchIsland(const Options& opts, ld::Fixup::Kind kind, int
 				return new ARMtoARMBranchIslandAtom(name, nextTarget, finalTarget);
 			}
 			break;
+#endif
 #if SUPPORT_ARCH_arm64
 	    case ld::Fixup::kindStoreARM64Branch26:
 		case ld::Fixup::kindStoreTargetAddressARM64Branch26:
@@ -364,10 +372,17 @@ static ld::Atom* makeBranchIsland(const Options& opts, ld::Fixup::Kind kind, int
 static uint64_t textSizeWhenMightNeedBranchIslands(const Options& opts, bool seenThumbBranch)
 {
 	switch ( opts.architecture() ) {
+#if SUPPORT_ARCH_ppc
 		case CPU_TYPE_POWERPC:
+			return 16000000;
+			break;
+#endif
+#if SUPPORT_ARCH_ppc64
 		case CPU_TYPE_POWERPC64:
 			return 16000000;
 			break;
+#endif
+#if SUPPORT_ARCH_arm_any
 		case CPU_TYPE_ARM:
 			if ( ! seenThumbBranch )
 				return 32000000;  // ARM can branch +/- 32MB
@@ -376,6 +391,7 @@ static uint64_t textSizeWhenMightNeedBranchIslands(const Options& opts, bool see
 			else
 				return  4000000;  // thumb1 can branch +/- 4MB
 			break;
+#endif
 #if SUPPORT_ARCH_arm64
 		case CPU_TYPE_ARM64:
 			return 128000000; // arm64 can branch +/- 128MB
@@ -390,10 +406,17 @@ static uint64_t textSizeWhenMightNeedBranchIslands(const Options& opts, bool see
 static uint64_t maxDistanceBetweenIslands(const Options& opts, bool seenThumbBranch)
 {
 	switch ( opts.architecture() ) {
+#if SUPPORT_ARCH_ppc
 		case CPU_TYPE_POWERPC:
+				return 14*1024*1024;
+			break;
+#endif
+#if SUPPORT_ARCH_ppc64
 		case CPU_TYPE_POWERPC64:
 				return 14*1024*1024;
 			break;
+#endif
+#if SUPPORT_ARCH_arm_any
 		case CPU_TYPE_ARM:
 			if ( ! seenThumbBranch )
 				return 30*1024*1024;	// 2MB of branch islands per 32MB
@@ -402,6 +425,7 @@ static uint64_t maxDistanceBetweenIslands(const Options& opts, bool seenThumbBra
 			else
 				return 3500000;			// 0.5MB of branch islands per 4MB
 			break;
+#endif
 #if SUPPORT_ARCH_arm64
 		case CPU_TYPE_ARM64:
 			return 124*1024*1024;		 // 4MB of branch islands per 128MB
@@ -466,6 +490,7 @@ static void makeIslandsForSection(const Options& opts, ld::Internal& state, ld::
 			}
 			bool haveBranch = false;
 			switch (fit->kind) {
+#if SUPPORT_ARCH_arm_any
 				case ld::Fixup::kindStoreThumbBranch22:
 				case ld::Fixup::kindStoreTargetAddressThumbBranch22:
 					hasThumbBranches = true;
@@ -474,6 +499,7 @@ static void makeIslandsForSection(const Options& opts, ld::Internal& state, ld::
 				case ld::Fixup::kindStoreTargetAddressARMBranch24:
 					haveBranch = true;
 					break;
+#endif
                 default:
                     break;   
 			}
@@ -576,12 +602,16 @@ static void makeIslandsForSection(const Options& opts, ld::Internal& state, ld::
 				case ld::Fixup::kindAddAddend:
 					addend = fit->u.addend;
 					break;
+#if SUPPORT_ARCH_ppc
 				case ld::Fixup::kindStorePPCBranch24:
 				case ld::Fixup::kindStoreTargetAddressPPCBranch24:
+#endif
+#if SUPPORT_ARCH_arm_any
 				case ld::Fixup::kindStoreARMBranch24:
 				case ld::Fixup::kindStoreThumbBranch22:
 				case ld::Fixup::kindStoreTargetAddressARMBranch24:
 				case ld::Fixup::kindStoreTargetAddressThumbBranch22:
+#endif
 #if SUPPORT_ARCH_arm64
 				case ld::Fixup::kindStoreARM64Branch26:
 				case ld::Fixup::kindStoreTargetAddressARM64Branch26:
@@ -760,13 +790,21 @@ void doPass(const Options& opts, ld::Internal& state)
 	
 	// only PowerPC and ARM[64] need branch islands
 	switch ( opts.architecture() ) {
+#if SUPPORT_ARCH_ppc
 		case CPU_TYPE_POWERPC:
+			break;
+#endif
+#if SUPPORT_ARCH_ppc64
 		case CPU_TYPE_POWERPC64:
+			break;
+#endif
+#if SUPPORT_ARCH_arm_any
 		case CPU_TYPE_ARM:
 #if SUPPORT_ARCH_arm64
 		case CPU_TYPE_ARM64:
 #endif
 			break;
+#endif
 		default:
 			return;
 	}

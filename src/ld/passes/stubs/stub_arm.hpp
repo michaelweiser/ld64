@@ -22,6 +22,7 @@
  * @APPLE_LICENSE_HEADER_END@
  */
 
+#if SUPPORT_ARCH_arm_any
 // already in ld::passes::stubs namespace
 namespace arm {
 
@@ -496,4 +497,4 @@ ld::Section StubCloseAtom::_s_section("__TEXT", "__symbolstub1", ld::Section::ty
 
 
 } // namespace arm 
-
+#endif
