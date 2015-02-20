@@ -535,8 +535,13 @@ void Options::setArchitecture(cpu_type_t type, cpu_subtype_t subtype)
 					if ( !fMakeCompressedDyldInfo && minOS(ld::mac10_6, ld::iOS_3_1) && !fMakeCompressedDyldInfoForceOff )
 						fMakeCompressedDyldInfo = true;
 					break;
+#if SUPPORT_ARCH_ppc
 				case CPU_TYPE_POWERPC:
+#endif
+#if SUPPORT_ARCH_ppc64
 				case CPU_TYPE_POWERPC64:
+#endif
+#if SUPPORT_ARCH_ppc || SUPPORT_ARCH_ppc64
 					if ( (fMacVersionMin == ld::macVersionUnset) && (fIOSVersionMin == ld::iOSVersionUnset) && (fOutputKind != Options::kObjectFile) ) {
 				#ifdef DEFAULT_MACOSX_MIN_VERSION
 						warning("-macosx_version_min not specified, assuming " DEFAULT_MACOSX_MIN_VERSION);
@@ -547,6 +552,8 @@ void Options::setArchitecture(cpu_type_t type, cpu_subtype_t subtype)
 				#endif
 					}
 					break;
+#endif
+#if SUPPORT_ARCH_arm_any
 				case CPU_TYPE_ARM:
 					if ( (fMacVersionMin == ld::macVersionUnset) && (fIOSVersionMin == ld::iOSVersionUnset) && (fOutputKind != Options::kObjectFile) ) {
 				#if defined(DEFAULT_IPHONEOS_MIN_VERSION)
@@ -563,6 +570,7 @@ void Options::setArchitecture(cpu_type_t type, cpu_subtype_t subtype)
 					if ( !fMakeCompressedDyldInfo && minOS(ld::mac10_6, ld::iOS_3_1) && !fMakeCompressedDyldInfoForceOff )
 						fMakeCompressedDyldInfo = true;
 					break;
+#endif
 			}
 			fLinkSnapshot.recordArch(fArchitectureName);
 			return;
@@ -1572,15 +1580,19 @@ void Options::parseOrderFile(const char* path, bool cstring)
 				}
 				// if there is an architecture prefix, only use this symbol it if matches current arch
 				if ( strncmp(symbolStart, "ppc:", 4) == 0 ) {
+#if SUPPORT_ARCH_ppc
 					if ( fArchitecture == CPU_TYPE_POWERPC )
 						symbolStart = &symbolStart[4];
 					else
+#endif
 					symbolStart = NULL;
 				}
 				else if ( strncmp(symbolStart, "ppc64:", 6) == 0 ) {
+#if SUPPORT_ARCH_ppc64
 					if ( fArchitecture == CPU_TYPE_POWERPC64 )
 						symbolStart = &symbolStart[6];
 					else
+#endif
 					symbolStart = NULL;
 				}
 				else if ( strncmp(symbolStart, "i386:", 5) == 0 ) {
@@ -1596,9 +1608,11 @@ void Options::parseOrderFile(const char* path, bool cstring)
 						symbolStart = NULL;
 				}
 				else if ( strncmp(symbolStart, "arm:", 4) == 0 ) {
+#if SUPPORT_ARCH_arm_any
 					if ( fArchitecture == CPU_TYPE_ARM )
 						symbolStart = &symbolStart[4];
 					else
+#endif
 						symbolStart = NULL;
 				}
 				if ( symbolStart != NULL ) {
@@ -3208,8 +3222,13 @@ void Options::reconfigureDefaults()
 			#endif		
 					}
 					break;
+#if SUPPORT_ARCH_ppc
 				case CPU_TYPE_POWERPC:
+#endif
+#if SUPPORT_ARCH_ppc64
 				case CPU_TYPE_POWERPC64:
+#endif
+#if SUPPORT_ARCH_ppc || SUPPORT_ARCH_ppc64
 					if ( (fOutputKind != Options::kObjectFile) && (fOutputKind != Options::kPreload) ) {
 			#ifdef DEFAULT_MACOSX_MIN_VERSION
 						warning("-macosx_version_min not specificed, assuming " DEFAULT_MACOSX_MIN_VERSION);
@@ -3220,6 +3239,8 @@ void Options::reconfigureDefaults()
 			#endif
 					}
 					break;
+#endif
+#if SUPPORT_ARCH_arm_any
 				case CPU_TYPE_ARM:
 					if ( (fOutputKind != Options::kObjectFile) && (fOutputKind != Options::kPreload) ) {
 			#if defined(DEFAULT_IPHONEOS_MIN_VERSION)
@@ -3234,6 +3255,7 @@ void Options::reconfigureDefaults()
 			#endif
 					}
 					break;
+#endif
 				default:
 					// architecture will be infered ;ater by examining .o files
 					break;
@@ -3250,6 +3272,7 @@ void Options::reconfigureDefaults()
 				fMacVersionMin = ld::mac10_4;
 			}
 			break;
+#if SUPPORT_ARCH_ppc
 		case CPU_TYPE_POWERPC:
 			/* no OS X for PPC later than 10.5 */
 			if ( fMacVersionMin > ld::mac10_5 ) {
@@ -3257,6 +3280,8 @@ void Options::reconfigureDefaults()
 				fMacVersionMin = ld::mac10_5;
 			}
 			break;
+#endif
+#if SUPPORT_ARCH_ppc64
 		case CPU_TYPE_POWERPC64:
 			if ( fMacVersionMin < ld::mac10_4 ) {
 				//warning("-macosx_version_min should be 10.4 or later for ppc64");
@@ -3267,6 +3292,7 @@ void Options::reconfigureDefaults()
 				fMacVersionMin = ld::mac10_5;
 			}
 			break;
+#endif
 		case CPU_TYPE_X86_64:
 			if ( (fMacVersionMin < ld::mac10_4) && (fIOSVersionMin == ld::iOSVersionUnset) ) {
 				//warning("-macosx_version_min should be 10.4 or later for x86_64");
@@ -3285,6 +3311,7 @@ void Options::reconfigureDefaults()
 				fAllowTextRelocs = true;
 				fUndefinedTreatment = kUndefinedDynamicLookup;
 				break;
+#if SUPPORT_ARCH_arm_any
 			case CPU_TYPE_ARM:
 				if ( fIOSVersionMin >= ld::iOS_5_0 ) {
                     // iOS 5.0 and later use new MH_KEXT_BUNDLE type
@@ -3296,7 +3323,10 @@ void Options::reconfigureDefaults()
 					break;
 				}
 				// else use object file
+#endif
+#if SUPPORT_ARCH_ppc
 			case CPU_TYPE_POWERPC:
+#endif
 			case CPU_TYPE_I386:
 				// use .o files
 				fOutputKind = kObjectFile;
@@ -3341,7 +3371,9 @@ void Options::reconfigureDefaults()
 	if ( fSplitSegs ) {
         // split seg only supported for ppc, i386, and arm.
         switch ( fArchitecture ) {
+#if SUPPORT_ARCH_ppc
             case CPU_TYPE_POWERPC:
+#endif
             case CPU_TYPE_I386:
                 if ( fOutputKind != Options::kDynamicLibrary )
                     fSplitSegs = false;
@@ -3349,6 +3381,7 @@ void Options::reconfigureDefaults()
                 if ( fSplitSegs && (fBaseWritableAddress-fBaseAddress != 0x10000000) )
                     fBaseWritableAddress = fBaseAddress + 0x10000000;
                 break;
+#if SUPPORT_ARCH_arm_any
             case CPU_TYPE_ARM:
                 if ( fOutputKind != Options::kDynamicLibrary ) {
                     fSplitSegs = false;
@@ -3359,6 +3392,7 @@ void Options::reconfigureDefaults()
 						fBaseWritableAddress = fBaseAddress + 0x08000000;
 				}
                 break;
+#endif
             default:
                 fSplitSegs = false;
                 fBaseAddress = 0;
@@ -3368,13 +3402,18 @@ void Options::reconfigureDefaults()
 
 	// set too-large size
 	switch ( fArchitecture ) {
+#if SUPPORT_ARCH_ppc
 		case CPU_TYPE_POWERPC:
+#endif
 		case CPU_TYPE_I386:
 			fMaxAddress = 0xFFFFFFFF;
 			break;
+#if SUPPORT_ARCH_ppc64
 		case CPU_TYPE_POWERPC64:
+#endif
 		case CPU_TYPE_X86_64:
 			break;
+#if SUPPORT_ARCH_arm_any
 		case CPU_TYPE_ARM:
 			switch ( fOutputKind ) {
 				case Options::kDynamicExecutable:
@@ -3397,6 +3436,7 @@ void Options::reconfigureDefaults()
 				fBaseAddress = 0;
 			}
 			break;
+#endif
 	}
 
 	// <rdar://problem/6138961> -r implies no prebinding for all architectures
@@ -3406,7 +3446,9 @@ void Options::reconfigureDefaults()
 	// disable prebinding depending on arch and min OS version
 	if ( fPrebind ) {
 		switch ( fArchitecture ) {
+#if SUPPORT_ARCH_ppc
 			case CPU_TYPE_POWERPC:
+#endif
 			case CPU_TYPE_I386:
 				if ( fMacVersionMin == ld::mac10_4 ) {
 					// in 10.4 only split seg dylibs are prebound
@@ -3440,10 +3482,13 @@ void Options::reconfigureDefaults()
 					}
 				}
 				break;
+#if SUPPORT_ARCH_ppc64
 			case CPU_TYPE_POWERPC64:
+#endif
 			case CPU_TYPE_X86_64:
 				fPrebind = false;
 				break;
+#if SUPPORT_ARCH_arm_any
             case CPU_TYPE_ARM:
 				switch ( fOutputKind ) {
 					case Options::kDynamicExecutable:
@@ -3461,6 +3506,7 @@ void Options::reconfigureDefaults()
 						break;
 				}
 				break;
+#endif
 		}
 	}
 
@@ -3487,14 +3533,18 @@ void Options::reconfigureDefaults()
 			case CPU_TYPE_I386:
 				if ( fIOSVersionMin != ld::iOSVersionUnset ) // simulator never needs modules
 					break;
+#if SUPPORT_ARCH_ppc
 			case CPU_TYPE_POWERPC:	// 10.3 and earlier dyld requires a module table
 				if ( fMacVersionMin <= ld::mac10_5 )
 					fNeedsModuleTable = true;
 				break;
+#endif
+#if SUPPORT_ARCH_arm_any
 			case CPU_TYPE_ARM:
 				if ( fPrebind )
 					fNeedsModuleTable = true; // redo_prebinding requires a module table
 				break;
+#endif
 		}
 	}
 	
@@ -3522,12 +3572,20 @@ void Options::reconfigureDefaults()
 					break;
 			}
 			break;
+#if SUPPORT_ARCH_ppc
 		case CPU_TYPE_POWERPC:
+#endif
+#if SUPPORT_ARCH_ppc64
 		case CPU_TYPE_POWERPC64:
+#endif
+#if SUPPORT_ARCH_arm_any
 		case CPU_TYPE_ARM:
+#endif
+#if SUPPORT_ARCH_ppc || SUPPORT_ARCH_ppc64 || SUPPORT_ARCH_arm_any
 			fAddCompactUnwindEncoding = false;
 			fRemoveDwarfUnwindIfCompactExists = false;
 			break;
+#endif
 		case 0:
 			// if -arch is missing, assume we don't want compact unwind info
 			fAddCompactUnwindEncoding = false;
@@ -3537,7 +3595,9 @@ void Options::reconfigureDefaults()
 	// only ARM main executables can be encrypted
 	if ( fOutputKind != Options::kDynamicExecutable )
 		fEncryptable = false;
+#if SUPPORT_ARCH_arm_any
 	if ( fArchitecture != CPU_TYPE_ARM )
+#endif
 		fEncryptable = false;
 
 	// don't move inits in dyld because dyld wants certain
@@ -3588,8 +3648,10 @@ void Options::reconfigureDefaults()
 	}
 
 
+#if SUPPORT_ARCH_arm_any
 	// only ARM enforces that cpu-sub-types must match
 	if ( fArchitecture != CPU_TYPE_ARM )
+#endif
 		fAllowCpuSubtypeMismatches = true;
 		
 	// only final linked images can not optimize zero fill sections
@@ -3632,6 +3694,7 @@ void Options::reconfigureDefaults()
 			fPositionIndependentExecutable = true;
 	}
 
+#if SUPPORT_ARCH_arm_any
 	// armv7 for iOS4.3 defaults to PIE
 	if ( (fArchitecture == CPU_TYPE_ARM) 
 		&& fArchSupportsThumb2
@@ -3639,6 +3702,7 @@ void Options::reconfigureDefaults()
 		&& (fIOSVersionMin >= ld::iOS_4_3) ) {
 			fPositionIndependentExecutable = true;
 	}
+#endif
 
 	// -no_pie anywhere on command line disable PIE
 	if ( fDisablePositionIndependentExecutable )
@@ -3935,12 +3999,18 @@ void Options::checkIllegalOptionCombinations()
 	if ( fStackAddr != 0 ) {
 		switch (fArchitecture) {
 			case CPU_TYPE_I386:
+#if SUPPORT_ARCH_ppc
 			case CPU_TYPE_POWERPC:
+#endif
+#if SUPPORT_ARCH_arm_any
             case CPU_TYPE_ARM:
+#endif
 				if ( fStackAddr > 0xFFFFFFFF )
 					throw "-stack_addr must be < 4G for 32-bit processes";
 				break;
+#if SUPPORT_ARCH_ppc64
 			case CPU_TYPE_POWERPC64:
+#endif
 			case CPU_TYPE_X86_64:
 				break;
 		}
@@ -3954,7 +4024,9 @@ void Options::checkIllegalOptionCombinations()
 	if ( fStackSize != 0 ) {
 		switch (fArchitecture) {
 			case CPU_TYPE_I386:
+#if SUPPORT_ARCH_ppc
 			case CPU_TYPE_POWERPC:
+#endif
 				if ( fStackSize > 0xFFFFFFFF )
 					throw "-stack_size must be < 4G for 32-bit processes";
 				if ( fStackAddr == 0 ) {
@@ -3963,6 +4035,7 @@ void Options::checkIllegalOptionCombinations()
 				if ( (fStackAddr > 0xB0000000) && ((fStackAddr-fStackSize) < 0xB0000000)  )
 					warning("custom stack placement overlaps and will disable shared region");
 				break;
+#if SUPPORT_ARCH_arm_any
             case CPU_TYPE_ARM:
 				if ( fStackSize > 0x2F000000 )
 					throw "-stack_size must be < 752MB";
@@ -3970,7 +4043,11 @@ void Options::checkIllegalOptionCombinations()
 					fStackAddr = 0x2F000000;
                 if ( fStackAddr > 0x30000000)
                     throw "-stack_addr must be < 0x30000000 for arm";
+				break;
+#endif
+#if SUPPORT_ARCH_ppc64
 			case CPU_TYPE_POWERPC64:
+#endif
 			case CPU_TYPE_X86_64:
 				if ( fStackAddr == 0 ) {
 					fStackAddr = 0x00007FFF5C000000LL;
@@ -4080,9 +4157,13 @@ void Options::checkIllegalOptionCombinations()
 			if ( fObjCABIVersion2Override )
 				alterObjC1ClassNamesToObjC2 = true;
 			break;
+#if SUPPORT_ARCH_ppc64
 		case CPU_TYPE_POWERPC64:
+#endif
 		case CPU_TYPE_X86_64:
+#if SUPPORT_ARCH_arm_any
 		case CPU_TYPE_ARM:
+#endif
 			alterObjC1ClassNamesToObjC2 = true;
 			break;
 	}
@@ -4174,11 +4255,16 @@ void Options::checkIllegalOptionCombinations()
 		// zero page size not specified on command line, set default
 		switch (fArchitecture) {
 			case CPU_TYPE_I386:
+#if SUPPORT_ARCH_ppc
 			case CPU_TYPE_POWERPC:
+#endif
+#if SUPPORT_ARCH_arm_any
             case CPU_TYPE_ARM:
+#endif
 				// first 4KB for 32-bit architectures
 				fZeroPageSize = 0x1000;
 				break;
+#if SUPPORT_ARCH_ppc64
 			case CPU_TYPE_POWERPC64:
 				// first 4GB for ppc64 on 10.5
 				if ( fMacVersionMin >= ld::mac10_5 )
@@ -4186,6 +4272,7 @@ void Options::checkIllegalOptionCombinations()
 				else
 					fZeroPageSize = 0x1000;	// 10.4 dyld may not be able to handle >4GB zero page
 				break;
+#endif
 			case CPU_TYPE_X86_64:
 				// first 4GB for x86_64 on all OS's
 				fZeroPageSize = 0x100000000ULL;
@@ -4287,9 +4374,11 @@ void Options::checkIllegalOptionCombinations()
 	
 	// -force_cpusubtype_ALL is not supported for ARM
 	if ( fForceSubtypeAll ) {
+#if SUPPORT_ARCH_arm_any
 		if ( fArchitecture == CPU_TYPE_ARM ) {
 			warning("-force_cpusubtype_ALL will become unsupported for ARM architectures");
 		}
+#endif
 	}
 	
 	// -reexported_symbols_list can only be used with -dynamiclib

@@ -206,16 +206,22 @@ std::vector<File*> Parser::_s_files;
 const char* Parser::tripletPrefixForArch(cpu_type_t arch)
 {
 	switch (arch) {
+#if SUPPORT_ARCH_ppc
 		case CPU_TYPE_POWERPC:
 			return "powerpc-";
+#endif
+#if SUPPORT_ARCH_ppc64
 		case CPU_TYPE_POWERPC64:
 			return "powerpc64-";
+#endif
 		case CPU_TYPE_I386:
 			return "i386-";
 		case CPU_TYPE_X86_64:
 			return "x86_64-";
+#if SUPPORT_ARCH_arm_any
 		case CPU_TYPE_ARM:
 			return "arm";
+#endif
 	}
 	return "";
 }
@@ -230,14 +236,18 @@ const char* Parser::fileKind(const uint8_t* p)
 	if ( (p[0] == 0xDE) && (p[1] == 0xC0) && (p[2] == 0x17) && (p[3] == 0x0B) ) {
 		uint32_t arch = LittleEndian::get32(*((uint32_t*)(&p[16])));
 		switch (arch) {
+#if SUPPORT_ARCH_ppc
 			case CPU_TYPE_POWERPC:
 				return "ppc";
+#endif
 			case CPU_TYPE_I386:
 				return "i386";
 			case CPU_TYPE_X86_64:
 				return "x86_64";
+#if SUPPORT_ARCH_arm_any
 			case CPU_TYPE_ARM:
 				return "arm";
+#endif
 		}
 		return "unknown bitcode architecture";
 	}
@@ -256,14 +266,18 @@ File* Parser::parse(const uint8_t* fileContent, uint64_t fileLength, const char*
 ld::relocatable::File* Parser::parseMachOFile(const uint8_t* p, size_t len, uint32_t nextInputOrdinal, cpu_type_t arch) 
 {
 	switch ( arch ) {
+#if SUPPORT_ARCH_ppc
 		case CPU_TYPE_POWERPC:
 			if ( mach_o::relocatable::Parser<ppc>::validFile(p) )
 				return mach_o::relocatable::Parser<ppc>::parse(p, len, "/tmp/lto.o", 0, nextInputOrdinal);
 			break;
+#endif
+#if SUPPORT_ARCH_ppc64
 		case CPU_TYPE_POWERPC64:
 			if ( mach_o::relocatable::Parser<ppc64>::validFile(p) )
 				return mach_o::relocatable::Parser<ppc64>::parse(p, len, "/tmp/lto.o", 0, nextInputOrdinal);
 			break;
+#endif
 		case CPU_TYPE_I386:
 			if ( mach_o::relocatable::Parser<x86>::validFile(p) )
 				return mach_o::relocatable::Parser<x86>::parse(p, len, "/tmp/lto.o", 0, nextInputOrdinal);
@@ -272,10 +286,12 @@ ld::relocatable::File* Parser::parseMachOFile(const uint8_t* p, size_t len, uint
 			if ( mach_o::relocatable::Parser<x86_64>::validFile(p) )
 				return mach_o::relocatable::Parser<x86_64>::parse(p, len, "/tmp/lto.o", 0, nextInputOrdinal);
 			break;
+#if SUPPORT_ARCH_arm_any
 		case CPU_TYPE_ARM:
 			if ( mach_o::relocatable::Parser<arm>::validFile(p) )
 				return mach_o::relocatable::Parser<arm>::parse(p, len, "/tmp/lto.o", 0, nextInputOrdinal);
 			break;
+#endif
 	}
 	throw "LLVM LTO, file is not of required architecture";
 }

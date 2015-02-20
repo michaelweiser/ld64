@@ -703,6 +703,7 @@ static const char* referenceTargetAtomName(ld::Internal& state, const ld::Fixup*
 	return "BAD BINDING";
 }
 
+#if SUPPORT_ARCH_arm_any
 bool OutputFile::targetIsThumb(ld::Internal& state, const ld::Fixup* fixup)
 {
 	switch ( fixup->binding ) {
@@ -716,6 +717,7 @@ bool OutputFile::targetIsThumb(ld::Internal& state, const ld::Fixup* fixup)
 	}
 	throw "unexpected binding";
 }
+#endif
 
 uint64_t OutputFile::addressOf(const ld::Internal& state, const ld::Fixup* fixup, const ld::Atom** target)
 {
@@ -872,7 +874,11 @@ void OutputFile::rangeCheckAbsolute32(int64_t displacement, ld::Internal& state,
 		// is encoded in mach-o the same as:
 		//  .long _foo + 0x40000000
 		// so if _foo lays out to 0xC0000100, the first is ok, but the second is not.  
-		if ( (_options.architecture() == CPU_TYPE_ARM) || (_options.architecture() == CPU_TYPE_I386) ) {
+		if (0 ||
+#if SUPPORT_ARCH_arm_any
+			(_options.architecture() == CPU_TYPE_ARM) ||
+#endif
+			(_options.architecture() == CPU_TYPE_I386) ) {
 			// Unlikely userland code does funky stuff like this, so warn for them, but not warn for -preload
 			if ( _options.outputKind() != Options::kPreload ) {
 				warning("32-bit absolute address out of range (0x%08llX max is 4GB): from %s + 0x%08X (0x%08llX) to 0x%08llX", 
@@ -909,6 +915,7 @@ void OutputFile::rangeCheckRIP32(int64_t displacement, ld::Internal& state, cons
 	}
 }
 
+#if SUPPORT_ARCH_arm_any
 void OutputFile::rangeCheckARM12(int64_t displacement, ld::Internal& state, const ld::Atom* atom, const ld::Fixup* fixup)
 {
 	if ( (displacement > 4092LL) || (displacement < (-4092LL)) ) {
@@ -962,7 +969,9 @@ void OutputFile::rangeCheckThumbBranch22(int64_t displacement, ld::Internal& sta
 		}
 	}
 }
+#endif
 
+#if SUPPORT_ARCH_ppc
 void OutputFile::rangeCheckPPCBranch24(int64_t displacement, ld::Internal& state, const ld::Atom* atom, const ld::Fixup* fixup)
 {
 	const int64_t bl_eightMegLimit = 0x00FFFFFF;
@@ -990,6 +999,7 @@ void OutputFile::rangeCheckPPCBranch14(int64_t displacement, ld::Internal& state
 				addressOf(state, fixup, &target));
 	}
 }
+#endif
 
 
 
@@ -1025,7 +1035,9 @@ void OutputFile::applyFixUps(ld::Internal& state, uint64_t mhAddress, const ld::
 	bool is_bl;
 	bool is_blx;
 	bool is_b;
+#if SUPPORT_ARCH_arm_any
 	bool thumbTarget = false;
+#endif
 	for (ld::Fixup::iterator fit = atom->fixupsBegin(), end=atom->fixupsEnd(); fit != end; ++fit) {
 		uint8_t* fixUpLocation = &buffer[fit->offsetInAtom];
 		switch ( (ld::Fixup::Kind)(fit->kind) ) { 
@@ -1038,9 +1050,11 @@ void OutputFile::applyFixUps(ld::Internal& state, uint64_t mhAddress, const ld::
 				break;
 			case ld::Fixup::kindSetTargetAddress:
 				accumulator = addressOf(state, fit, &toTarget);			
+#if SUPPORT_ARCH_arm_any
 				thumbTarget = targetIsThumb(state, fit);
 				if ( thumbTarget ) 
 					accumulator |= 1;
+#endif
 				if ( fit->contentAddendOnly || fit->contentDetlaToAddendOnly )
 					accumulator = 0;
 				break;
@@ -1050,6 +1064,7 @@ void OutputFile::applyFixUps(ld::Internal& state, uint64_t mhAddress, const ld::
 					accumulator -= delta;
 				break;
 			case ld::Fixup::kindAddAddend:
+#if SUPPORT_ARCH_arm_any
 				// <rdar://problem/8342028> ARM main executables main contain .long constants pointing
 				// into themselves such as jump tables.  These .long should not have thumb bit set
 				// even though the target is a thumb instruction. We can tell it is an interior pointer
@@ -1059,6 +1074,7 @@ void OutputFile::applyFixUps(ld::Internal& state, uint64_t mhAddress, const ld::
 					//warning("removing thumb bit from intra-atom pointer in %s %s+0x%0X", 
 					//		atom->section().sectionName(), atom->name(), fit->offsetInAtom);
 				}
+#endif
 				accumulator += fit->u.addend;
 				break;
 			case ld::Fixup::kindSubtractAddend:
@@ -1193,6 +1209,7 @@ void OutputFile::applyFixUps(ld::Internal& state, uint64_t mhAddress, const ld::
 				rangeCheckRIP32(delta, state, atom, fit);
 				set32LE(fixUpLocation, delta);
 				break;
+#if SUPPORT_ARCH_arm_any
 			case ld::Fixup::kindStoreTargetAddressARMLoad12:
 				accumulator = addressOf(state, fit, &toTarget);
 				// fall into kindStoreARMLoad12 case
@@ -1210,6 +1227,8 @@ void OutputFile::applyFixUps(ld::Internal& state, uint64_t mhAddress, const ld::
 				}
 				set32LE(fixUpLocation, newInstruction);
 				break;
+#endif
+#if SUPPORT_ARCH_ppc
 			case ld::Fixup::kindStorePPCBranch14:
 				delta = accumulator - (atom->finalAddress() + fit->offsetInAtom);
 				rangeCheckPPCBranch14(delta, state, atom, fit);
@@ -1245,6 +1264,7 @@ void OutputFile::applyFixUps(ld::Internal& state, uint64_t mhAddress, const ld::
 				newInstruction = (instruction & 0xFFFF0000) | ((accumulator >> 16) & 0xFFFF);
 				set32BE(fixUpLocation, newInstruction);
 				break;
+#endif
 			case ld::Fixup::kindDtraceExtra:
 				break;
 			case ld::Fixup::kindStoreX86DtraceCallSiteNop:
@@ -1267,6 +1287,7 @@ void OutputFile::applyFixUps(ld::Internal& state, uint64_t mhAddress, const ld::
 					fixUpLocation[3] = 0x90;		// 1-byte nop
 				}
 				break;
+#if SUPPORT_ARCH_ppc
 			case ld::Fixup::kindStorePPCDtraceCallSiteNop:
 				if ( _options.outputKind() != Options::kObjectFile ) {
 					// change call site to a NOP
@@ -1279,6 +1300,8 @@ void OutputFile::applyFixUps(ld::Internal& state, uint64_t mhAddress, const ld::
 					set32BE(fixUpLocation, 0x38600000);
 				}
 				break;
+#endif
+#if SUPPORT_ARCH_arm_any
 			case ld::Fixup::kindStoreARMDtraceCallSiteNop:
 				if ( _options.outputKind() != Options::kObjectFile ) {
 					// change call site to a NOP
@@ -1303,6 +1326,7 @@ void OutputFile::applyFixUps(ld::Internal& state, uint64_t mhAddress, const ld::
 					set32LE(fixUpLocation, 0x46C04040);
 				}
 				break;
+#endif
 			case ld::Fixup::kindLazyTarget:
 				break;
 			case ld::Fixup::kindSetLazyOffset:
@@ -1318,9 +1342,11 @@ void OutputFile::applyFixUps(ld::Internal& state, uint64_t mhAddress, const ld::
 				break;
 			case ld::Fixup::kindStoreTargetAddressLittleEndian32:
 				accumulator = addressOf(state, fit, &toTarget);
+#if SUPPORT_ARCH_arm_any
 				thumbTarget = targetIsThumb(state, fit);
 				if ( thumbTarget ) 
 					accumulator |= 1;
+#endif
 				if ( fit->contentAddendOnly )
 					accumulator = 0;
 				rangeCheckAbsolute32(accumulator, state, atom, fit);
@@ -1397,6 +1423,7 @@ void OutputFile::applyFixUps(ld::Internal& state, uint64_t mhAddress, const ld::
 				rangeCheckRIP32(delta, state, atom, fit);
 				set32LE(fixUpLocation, delta);
 				break;
+#if SUPPORT_ARCH_arm_any
 			case ld::Fixup::kindStoreTargetAddressARMBranch24:
 				accumulator = addressOf(state, fit, &toTarget);
 				thumbTarget = targetIsThumb(state, fit);
@@ -1578,6 +1605,8 @@ void OutputFile::applyFixUps(ld::Internal& state, uint64_t mhAddress, const ld::
 					set32LE(fixUpLocation, newInstruction);		
 				}
 				break;
+#endif
+#if SUPPORT_ARCH_ppc
 			case ld::Fixup::kindStoreTargetAddressPPCBranch24:
 				accumulator = addressOf(state, fit, &toTarget);
 				if ( fit->contentDetlaToAddendOnly )
@@ -1590,6 +1619,7 @@ void OutputFile::applyFixUps(ld::Internal& state, uint64_t mhAddress, const ld::
 				newInstruction = (instruction & 0xFC000003) | ((uint32_t)delta & 0x03FFFFFC);
 				set32BE(fixUpLocation, newInstruction);
 				break;
+#endif
 		}
 	}
 }
@@ -1597,15 +1627,18 @@ void OutputFile::applyFixUps(ld::Internal& state, uint64_t mhAddress, const ld::
 void OutputFile::copyNoOps(uint8_t* from, uint8_t* to, bool thumb)
 {
 	switch ( _options.architecture() ) {
+#if SUPPORT_ARCH_ppc
 		case CPU_TYPE_POWERPC:
 			for (uint8_t* p=from; p < to; p += 4)
 				OSWriteBigInt32((uint32_t*)p, 0, 0x60000000);
 			break;
+#endif
 		case CPU_TYPE_I386:
 		case CPU_TYPE_X86_64:
 			for (uint8_t* p=from; p < to; ++p)
 				*p = 0x90;
 			break;
+#if SUPPORT_ARCH_arm_any
 		case CPU_TYPE_ARM:
 			if ( thumb ) {
 				for (uint8_t* p=from; p < to; p += 2)
@@ -1616,6 +1649,7 @@ void OutputFile::copyNoOps(uint8_t* from, uint8_t* to, bool thumb)
 					OSWriteLittleInt32((uint32_t*)p, 0, 0xe1a00000);
 			}
 			break;
+#endif
 		default:
 			for (uint8_t* p=from; p < to; ++p)
 				*p = 0x00;
@@ -1688,7 +1722,9 @@ void OutputFile::writeAtoms(ld::Internal& state, uint8_t* wholeBuffer)
 				this->applyFixUps(state, mhAddress, atom, &wholeBuffer[fileOffset]);
 				fileOffsetOfEndOfLastAtom = fileOffset+atom->size();
 				lastAtomUsesNoOps = sectionUsesNops;
+#if SUPPORT_ARCH_arm_any
 				lastAtomWasThumb = atom->isThumb();
+#endif
 			}
 			catch (const char* msg) {
 				if ( atom->file() != NULL )
@@ -2111,6 +2147,7 @@ void OutputFile::addLinkEdit(ld::Internal& state)
 		return addPreloadLinkEdit(state);
 	
 	switch ( _options.architecture() ) {
+#if SUPPORT_ARCH_ppc
 		case CPU_TYPE_POWERPC:
 			if ( _hasSectionRelocations ) {
 				_sectionsRelocationsAtom = new SectionRelocationsAtom<ppc>(_options, state, *this);
@@ -2167,6 +2204,7 @@ void OutputFile::addLinkEdit(ld::Internal& state)
 				stringPoolSection = state.addAtom(*_stringPoolAtom);
 			}
 			break;
+#endif
 #if SUPPORT_ARCH_i386
 		case CPU_TYPE_I386:
 			if ( _hasSectionRelocations ) {
@@ -2341,6 +2379,7 @@ void OutputFile::addLinkEdit(ld::Internal& state)
 			}
 			break;
 #endif
+#if SUPPORT_ARCH_ppc64
 		case CPU_TYPE_POWERPC64:
 			if ( _hasSectionRelocations ) {
 				_sectionsRelocationsAtom = new SectionRelocationsAtom<ppc64>(_options, state, *this);
@@ -2397,6 +2436,7 @@ void OutputFile::addLinkEdit(ld::Internal& state)
 				stringPoolSection = state.addAtom(*_stringPoolAtom);
 			}
 			break;
+#endif
 		default:
 			throw "unknown architecture";
 	}
@@ -2423,14 +2463,18 @@ void OutputFile::addLoadCommands(ld::Internal& state)
 			headerAndLoadCommandsSection = state.addAtom(*_headersAndLoadCommandAtom);
 			break;
 #endif
+#if SUPPORT_ARCH_ppc
 		case CPU_TYPE_POWERPC:
 			_headersAndLoadCommandAtom = new HeaderAndLoadCommandsAtom<ppc>(_options, state, *this);
 			headerAndLoadCommandsSection = state.addAtom(*_headersAndLoadCommandAtom);
 			break;
+#endif
+#if SUPPORT_ARCH_ppc64
 		case CPU_TYPE_POWERPC64:
 			_headersAndLoadCommandAtom = new HeaderAndLoadCommandsAtom<ppc64>(_options, state, *this);
 			headerAndLoadCommandsSection = state.addAtom(*_headersAndLoadCommandAtom);
 			break;
+#endif
 		default:
 			throw "unknown architecture";
 	}
@@ -2583,21 +2627,29 @@ bool OutputFile::isPcRelStore(ld::Fixup::Kind kind)
 		case ld::Fixup::kindStoreX86PCRel32GOT:
 		case ld::Fixup::kindStoreX86PCRel32TLVLoad:
 		case ld::Fixup::kindStoreX86PCRel32TLVLoadNowLEA:
+#if SUPPORT_ARCH_arm_any
 		case ld::Fixup::kindStoreARMBranch24:
 		case ld::Fixup::kindStoreThumbBranch22:
 		case ld::Fixup::kindStoreARMLoad12:
+#endif
+#if SUPPORT_ARCH_ppc
 		case ld::Fixup::kindStorePPCBranch24:
 		case ld::Fixup::kindStorePPCBranch14:
 		case ld::Fixup::kindStorePPCPicLow14:
 		case ld::Fixup::kindStorePPCPicLow16:
 		case ld::Fixup::kindStorePPCPicHigh16AddLow:
+#endif
 		case ld::Fixup::kindStoreTargetAddressX86PCRel32:
 		case ld::Fixup::kindStoreTargetAddressX86PCRel32GOTLoad:
 		case ld::Fixup::kindStoreTargetAddressX86PCRel32GOTLoadNowLEA:
+#if SUPPORT_ARCH_arm_any
 		case ld::Fixup::kindStoreTargetAddressARMBranch24:
 		case ld::Fixup::kindStoreTargetAddressThumbBranch22:
 		case ld::Fixup::kindStoreTargetAddressARMLoad12:
+#endif
+#if SUPPORT_ARCH_ppc
 		case ld::Fixup::kindStoreTargetAddressPPCBranch24:
+#endif
 			return true;
 		case ld::Fixup::kindStoreTargetAddressX86BranchPCRel32:
 			return (_options.outputKind() != Options::kKextBundle);
@@ -2643,19 +2695,27 @@ bool OutputFile::setsTarget(ld::Fixup::Kind kind)
 		case ld::Fixup::kindStoreTargetAddressX86BranchPCRel32:
 		case ld::Fixup::kindStoreTargetAddressX86PCRel32GOTLoad:
 		case ld::Fixup::kindStoreTargetAddressX86PCRel32GOTLoadNowLEA:
+#if SUPPORT_ARCH_arm_any
 		case ld::Fixup::kindStoreTargetAddressARMBranch24:
 		case ld::Fixup::kindStoreTargetAddressThumbBranch22:
 		case ld::Fixup::kindStoreTargetAddressARMLoad12:
+#endif
+#if SUPPORT_ARCH_ppc
 		case ld::Fixup::kindStoreTargetAddressPPCBranch24:
+#endif
 			return true;
 		case ld::Fixup::kindStoreX86DtraceCallSiteNop:
 		case ld::Fixup::kindStoreX86DtraceIsEnableSiteClear:
+#if SUPPORT_ARCH_arm_any
 		case ld::Fixup::kindStoreARMDtraceCallSiteNop:
 		case ld::Fixup::kindStoreARMDtraceIsEnableSiteClear:
 		case ld::Fixup::kindStoreThumbDtraceCallSiteNop:
 		case ld::Fixup::kindStoreThumbDtraceIsEnableSiteClear:
+#endif
+#if SUPPORT_ARCH_ppc
 		case ld::Fixup::kindStorePPCDtraceCallSiteNop:
 		case ld::Fixup::kindStorePPCDtraceIsEnableSiteClear:
+#endif
 			return (_options.outputKind() == Options::kObjectFile);
 		default:
 			break;
@@ -3224,6 +3284,7 @@ void OutputFile::addClassicRelocs(ld::Internal& state, ld::Internal::FinalSectio
 				sect->hasLocalRelocs = true;
 			}
 			break;
+#if SUPPORT_ARCH_ppc
 		case ld::Fixup::kindStorePPCAbsLow14:
 		case ld::Fixup::kindStorePPCAbsLow16:
 		case ld::Fixup::kindStorePPCAbsHigh16AddLow:
@@ -3243,6 +3304,7 @@ void OutputFile::addClassicRelocs(ld::Internal& state, ld::Internal::FinalSectio
 				}
 			}
 			break;
+#endif
 		case ld::Fixup::kindStoreTargetAddressX86BranchPCRel32:
 			if ( _options.outputKind() == Options::kKextBundle ) {
 				assert(target != NULL);
@@ -3253,6 +3315,7 @@ void OutputFile::addClassicRelocs(ld::Internal& state, ld::Internal::FinalSectio
 			}
 			break;
 		
+#if SUPPORT_ARCH_arm_any
 		case ld::Fixup::kindStoreARMLow16:
 		case ld::Fixup::kindStoreThumbLow16:
 			// no way to encode rebasing of binding for these instructions
@@ -3266,6 +3329,7 @@ void OutputFile::addClassicRelocs(ld::Internal& state, ld::Internal::FinalSectio
 			if ( _options.outputSlidable() || (target->definition() == ld::Atom::definitionProxy) )
 				throwf("no supported runtime hi16 relocation in %s from %s to %s", atom->name(), atom->file()->path(), target->name());
 			break;
+#endif
 
 		default:
 			break;
@@ -3280,6 +3344,7 @@ bool OutputFile::useExternalSectionReloc(const ld::Atom* atom, const ld::Atom* t
 		return ( target->symbolTableInclusion() != ld::Atom::symbolTableNotIn );
 	}
 	
+#if SUPPORT_ARCH_arm_any
 	// <rdar://problem/9513487> support arm branch interworking in -r mode 
 	if ( (_options.architecture() == CPU_TYPE_ARM) && (_options.outputKind() == Options::kObjectFile) ) {
 		if ( atom->isThumb() != target->isThumb() ) {
@@ -3294,6 +3359,7 @@ bool OutputFile::useExternalSectionReloc(const ld::Atom* atom, const ld::Atom* t
 			}
 		}
 	}
+#endif
 
 	// most architectures use external relocations only for references
 	// to a symbol in another translation unit or for references to "weak symbols" or tentative definitions
@@ -3387,16 +3453,20 @@ void OutputFile::makeSplitSegInfo(ld::Internal& state)
 			const ld::Atom* target = NULL;
 			const ld::Atom* fromTarget = NULL;
             uint64_t accumulator = 0;
+#if SUPPORT_ARCH_arm_any
             bool thumbTarget;
+#endif
 			bool hadSubtract = false;
 			for (ld::Fixup::iterator fit = atom->fixupsBegin(), end=atom->fixupsEnd(); fit != end; ++fit) {
 				if ( fit->firstInCluster() ) 
 					target = NULL;
 				if ( this->setsTarget(fit->kind) ) {
 					accumulator = addressOf(state, fit, &target);			
+#if SUPPORT_ARCH_arm_any
 					thumbTarget = targetIsThumb(state, fit);
 					if ( thumbTarget ) 
 						accumulator |= 1;
+#endif
 				}
 				switch ( fit->kind ) {
 					case ld::Fixup::kindSubtractTargetAddress:
@@ -3426,17 +3496,22 @@ void OutputFile::makeSplitSegInfo(ld::Internal& state)
 					case ld::Fixup::kindStoreX86PCRel32GOTLoad:
 					case ld::Fixup::kindStoreX86PCRel32GOTLoadNowLEA:
 					case ld::Fixup::kindStoreX86PCRel32GOT:
+#if SUPPORT_ARCH_ppc
 					case ld::Fixup::kindStorePPCPicHigh16AddLow:
+#endif
 					case ld::Fixup::kindStoreTargetAddressX86PCRel32:
 					case ld::Fixup::kindStoreTargetAddressX86PCRel32GOTLoad:
 					case ld::Fixup::kindStoreTargetAddressX86PCRel32GOTLoadNowLEA:
+#if SUPPORT_ARCH_arm_any
                     case ld::Fixup::kindStoreARMLow16:
                     case ld::Fixup::kindStoreThumbLow16: 
+#endif
 						assert(target != NULL);
 						if ( strcmp(sect->segmentName(), target->section().segmentName()) != 0 ) {	
 							_splitSegInfos.push_back(SplitSegInfoEntry(atom->finalAddress()+fit->offsetInAtom,fit->kind));
 						}
 						break;
+#if SUPPORT_ARCH_arm_any
                     case ld::Fixup::kindStoreARMHigh16: 
                     case ld::Fixup::kindStoreThumbHigh16: 
 						assert(target != NULL);
@@ -3446,6 +3521,7 @@ void OutputFile::makeSplitSegInfo(ld::Internal& state)
  							_splitSegInfos.push_back(SplitSegInfoEntry(atom->finalAddress()+fit->offsetInAtom,fit->kind, extra));
 						}
 						break;
+#endif
 					case ld::Fixup::kindSetTargetImageOffset:
 						accumulator = addressOf(state, fit, &target);			
 						assert(target != NULL);
