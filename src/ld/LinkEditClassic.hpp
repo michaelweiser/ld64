@@ -333,8 +333,10 @@ bool SymbolTableAtom<A>::addLocal(const ld::Atom* atom, StringPoolAtom* pool)
         desc |= N_NO_DEAD_STRIP;
 	if ( (atom->definition() == ld::Atom::definitionRegular) && (atom->combine() == ld::Atom::combineByName) )
 		desc |= N_WEAK_DEF;
+#if SUPPORT_ARCH_arm_any
 	if ( atom->isThumb() )
 		desc |= N_ARM_THUMB_DEF;
+#endif
     if ( (this->_options.outputKind() == Options::kObjectFile) && this->_state.allObjectFilesScatterable && isAltEntry(atom) )
         desc |= N_ALT_ENTRY;
 	entry.set_n_desc(desc);
@@ -404,8 +406,10 @@ void SymbolTableAtom<A>::addGlobal(const ld::Atom* atom, StringPoolAtom* pool)
 
 	// set n_desc
 	uint16_t desc = 0;
+#if SUPPORT_ARCH_arm_any
     if ( atom->isThumb() )
         desc |= N_ARM_THUMB_DEF;
+#endif
     if ( atom->symbolTableInclusion() == ld::Atom::symbolTableInAndNeverStrip )
         desc |= REFERENCED_DYNAMICALLY;
     if ( (atom->contentType() == ld::Atom::typeResolver) && (this->_options.outputKind() == Options::kObjectFile) )
@@ -858,6 +862,7 @@ void LocalRelocationsAtom<A>::addTextReloc(uint64_t addr, ld::Fixup::Kind kind, 
 	macho_relocation_info<P> reloc1;
 	macho_relocation_info<P> reloc2;
 	switch ( kind ) {
+#if SUPPORT_ARCH_ppc
 		case ld::Fixup::kindStorePPCAbsLow14:
 		case ld::Fixup::kindStorePPCAbsLow16:
 			// a reference to the absolute address of something in this same linkage unit can be
@@ -898,6 +903,7 @@ void LocalRelocationsAtom<A>::addTextReloc(uint64_t addr, ld::Fixup::Kind kind, 
 				_relocs.push_back(reloc2);
 			}
 			break;
+#endif
 		default:
 			break;
 	}
@@ -1029,9 +1035,13 @@ template <> uint32_t ExternalRelocationsAtom<arm64>::pointerReloc() { return ARM
 template <> uint32_t ExternalRelocationsAtom<arm>::pointerReloc() { return ARM_RELOC_VANILLA; }
 #endif
 template <> uint32_t ExternalRelocationsAtom<x86>::pointerReloc() { return GENERIC_RELOC_VANILLA; }
+#if SUPPORT_ARCH_ppc
 template <> uint32_t ExternalRelocationsAtom<ppc>::pointerReloc() { return PPC_RELOC_VANILLA; }
+#endif
 template <> uint32_t ExternalRelocationsAtom<x86_64>::pointerReloc() { return X86_64_RELOC_UNSIGNED; }
+#if SUPPORT_ARCH_ppc64
 template <> uint32_t ExternalRelocationsAtom<ppc64>::pointerReloc() { return PPC_RELOC_VANILLA; }
+#endif
 
 
 template <> uint32_t ExternalRelocationsAtom<x86_64>::callReloc() { return X86_64_RELOC_BRANCH; }
@@ -1959,6 +1969,7 @@ void SectionRelocationsAtom<arm64>::encodeSectionReloc(ld::Internal::FinalSectio
 }
 #endif // SUPPORT_ARCH_arm64
 
+#if SUPPORT_ARCH_ppc
 template <>
 void SectionRelocationsAtom<ppc>::encodeSectionReloc(ld::Internal::FinalSection* sect,
 													const Entry& entry, std::vector<macho_relocation_info<P> >& relocs)
@@ -2219,7 +2230,9 @@ void SectionRelocationsAtom<ppc>::encodeSectionReloc(ld::Internal::FinalSection*
 
 	}
 }
+#endif
 
+#if SUPPORT_ARCH_ppc64
 template <>
 void SectionRelocationsAtom<ppc64>::encodeSectionReloc(ld::Internal::FinalSection* sect,
 													const Entry& entry, std::vector<macho_relocation_info<P> >& relocs)
@@ -2535,6 +2548,7 @@ void SectionRelocationsAtom<ppc64>::encodeSectionReloc(ld::Internal::FinalSectio
 
 	}
 }
+#endif
 
 template <typename A>
 void SectionRelocationsAtom<A>::addSectionReloc(ld::Internal::FinalSection*	sect, ld::Fixup::Kind kind, 
