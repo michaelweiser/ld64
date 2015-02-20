@@ -118,10 +118,14 @@ const ld::Atom* Pass::stubableFixup(const ld::Fixup* fixup, ld::Internal& state)
 	if ( fixup->binding == ld::Fixup::bindingsIndirectlyBound ) {
 		const ld::Atom* target = state.indirectBindingTable[fixup->u.bindingIndex];
 		switch ( fixup->kind ) {
+#if SUPPORT_ARCH_ppc
 			case ld::Fixup::kindStoreTargetAddressPPCBranch24:
+#endif
 			case ld::Fixup::kindStoreTargetAddressX86BranchPCRel32:
+#if SUPPORT_ARCH_arm_any
 			case ld::Fixup::kindStoreTargetAddressARMBranch24:
 			case ld::Fixup::kindStoreTargetAddressThumbBranch22:
+#endif
 #if SUPPORT_ARCH_arm64
 			case ld::Fixup::kindStoreTargetAddressARM64Branch26:
 #endif
@@ -183,15 +187,19 @@ ld::Atom* Pass::makeStub(const ld::Atom& target, bool weakImport)
 	}
 
 	switch ( _architecture ) {
+#if SUPPORT_ARCH_ppc
 		case CPU_TYPE_POWERPC:
 			if ( _pic )
 				return new ld::passes::stubs::ppc::classic::StubPICAtom(*this, target, forLazyDylib, false, weakImport);
 			else
 				return new ld::passes::stubs::ppc::classic::StubNoPICAtom(*this, target, forLazyDylib, false, weakImport);
 			break;
+#endif
+#if SUPPORT_ARCH_ppc64
 		case CPU_TYPE_POWERPC64:
 			return new ld::passes::stubs::ppc::classic::StubPICAtom(*this, target, forLazyDylib, true, weakImport);
 			break;
+#endif
 #if SUPPORT_ARCH_i386
 		case CPU_TYPE_I386:
 			if ( usingCompressedLINKEDIT() && !forLazyDylib )
@@ -335,10 +343,15 @@ void Pass::process(ld::Internal& state)
 				if ( _options.outputKind() != Options::kDynamicLibrary ) 
 					throwf("resolver functions (%s) can only be used in dylibs", atom->name());
 				if ( !_options.makeCompressedDyldInfo() ) {
-					if ( _options.architecture() == CPU_TYPE_ARM )
+					if ( 0 ) { }
+#if SUPPORT_ARCH_arm_any
+					else if ( _options.architecture() == CPU_TYPE_ARM )
 						throwf("resolver functions (%s) can only be used when targeting iOS 4.2 or later", atom->name());
+#endif
+#if SUPPORT_ARCH_ppc
 					else if ( _options.architecture() == CPU_TYPE_POWERPC )
 						throwf("resolver functions (%s) not supported for PowerPC", atom->name());
+#endif
 					else
 						throwf("resolver functions (%s) can only be used when targeting Mac OS X 10.6 or later", atom->name());
 				}
@@ -366,6 +379,7 @@ void Pass::process(ld::Internal& state)
 	if ( !_options.makeCompressedDyldInfo() && (state.classicBindingHelper == NULL) && (_options.outputKind() != Options::kKextBundle) ) 
 		throw "symbol dyld_stub_binding_helper not found, normally in crt1.o/dylib1.o/bundle1.o";
 
+#if SUPPORT_ARCH_arm_any
 	// disable arm close stubs in some cases
 	if ( _architecture == CPU_TYPE_ARM ) {
         if ( codeSize > 4*1024*1024 )
@@ -390,6 +404,7 @@ void Pass::process(ld::Internal& state)
             }
         }
     }
+#endif
 	
 	// make stub atoms 
 	for (std::map<const ld::Atom*,ld::Atom*>::iterator it = stubFor.begin(); it != stubFor.end(); ++it) {
