@@ -249,11 +249,15 @@ template <typename A>
 bool File<A>::_s_logHashtable = false;
 
 template <> const char* File<x86_64>::objCInfoSegmentName() { return "__DATA"; }
+#if SUPPORT_ARCH_arm_any
 template <> const char* File<arm>::objCInfoSegmentName() { return "__DATA"; }
+#endif
 template <typename A> const char* File<A>::objCInfoSegmentName() { return "__OBJC"; }
 
 template <> const char* File<x86_64>::objCInfoSectionName() { return "__objc_imageinfo"; }
+#if SUPPORT_ARCH_arm_any
 template <> const char* File<arm>::objCInfoSectionName() { return "__objc_imageinfo"; }
+#endif
 template <typename A> const char* File<A>::objCInfoSectionName() { return "__image_info"; }
 
 template <typename A>
@@ -1007,6 +1011,7 @@ public:
 
 
 
+#if SUPPORT_ARCH_ppc
 template <>
 bool Parser<ppc>::validFile(const uint8_t* fileContent, bool executableOrDyliborBundle)
 {
@@ -1033,7 +1038,9 @@ bool Parser<ppc>::validFile(const uint8_t* fileContent, bool executableOrDylibor
 			return false;
 	}
 }
+#endif
 
+#if SUPPORT_ARCH_ppc64
 template <>
 bool Parser<ppc64>::validFile(const uint8_t* fileContent, bool executableOrDyliborBundle)
 {
@@ -1060,6 +1067,7 @@ bool Parser<ppc64>::validFile(const uint8_t* fileContent, bool executableOrDylib
 			return false;
 	}
 }
+#endif
 
 template <>
 bool Parser<x86>::validFile(const uint8_t* fileContent, bool executableOrDyliborBundle)
@@ -1115,6 +1123,7 @@ bool Parser<x86_64>::validFile(const uint8_t* fileContent, bool executableOrDyli
 	}
 }
 
+#if SUPPORT_ARCH_arm_any
 template <>
 bool Parser<arm>::validFile(const uint8_t* fileContent, bool executableOrDyliborBundle)
 {
@@ -1141,9 +1150,11 @@ bool Parser<arm>::validFile(const uint8_t* fileContent, bool executableOrDylibor
 			return false;
 	}
 }
+#endif
 
 
 
+#if SUPPORT_ARCH_arm64
 template <>
 bool Parser<arm64>::validFile(const uint8_t* fileContent, bool executableOrDyliborBundle)
 {
@@ -1170,6 +1181,7 @@ bool Parser<arm64>::validFile(const uint8_t* fileContent, bool executableOrDylib
 			return false;
 	}
 }
+#endif
 
 
 bool isDylibFile(const uint8_t* fileContent, cpu_type_t* result, cpu_subtype_t* subResult)
@@ -1185,28 +1197,36 @@ bool isDylibFile(const uint8_t* fileContent, cpu_type_t* result, cpu_subtype_t* 
 		*subResult = CPU_SUBTYPE_X86_ALL;
 		return true;
 	}
+#if SUPPORT_ARCH_arm_any
 	if ( Parser<arm>::validFile(fileContent, false) ) {
 		*result = CPU_TYPE_ARM;
 		const macho_header<Pointer32<LittleEndian> >* header = (const macho_header<Pointer32<LittleEndian> >*)fileContent;
 		*subResult = header->cpusubtype();
 		return true;
 	}
+#endif
+#if SUPPORT_ARCH_arm64
 	if ( Parser<arm64>::validFile(fileContent, false) ) {
 		*result = CPU_TYPE_ARM64;
 		*subResult = CPU_SUBTYPE_ARM64_ALL;
 		return true;
 	}
+#endif
+#if SUPPORT_ARCH_ppc
 	if ( Parser<ppc>::validFile(fileContent, false) ) {
 		*result = CPU_TYPE_POWERPC;
 		const macho_header<Pointer32<BigEndian> >* header = (const macho_header<Pointer32<BigEndian> >*)fileContent;
 		*subResult = header->cpusubtype();
 		return true;
 	}
+#endif
+#if SUPPORT_ARCH_ppc64
 	if ( Parser<ppc64>::validFile(fileContent, false) ) {
 		*result = CPU_TYPE_POWERPC64;
 		*subResult = CPU_SUBTYPE_POWERPC_ALL;
 		return true;
 	}
+#endif
 	return false;
 }
 
@@ -1232,6 +1252,7 @@ const char* Parser<x86_64>::fileKind(const uint8_t* fileContent)
 	return "x86_64";
 }
 
+#if SUPPORT_ARCH_arm_any
 template <>
 const char* Parser<arm>::fileKind(const uint8_t* fileContent)
 {
@@ -1247,6 +1268,7 @@ const char* Parser<arm>::fileKind(const uint8_t* fileContent)
 	}
 	return "arm???";
 }
+#endif
 
 #if SUPPORT_ARCH_arm64
 template <>
@@ -1261,6 +1283,7 @@ const char* Parser<arm64>::fileKind(const uint8_t* fileContent)
 }
 #endif
 
+#if SUPPORT_ARCH_ppc
 template <>
 const char* Parser<ppc>::fileKind(const uint8_t* fileContent)
 {
@@ -1283,7 +1306,9 @@ const char* Parser<ppc>::fileKind(const uint8_t* fileContent)
 	}
 	return "ppc???";
 }
+#endif
 
+#if SUPPORT_ARCH_ppc64
 template <>
 const char* Parser<ppc64>::fileKind(const uint8_t* fileContent)
 {
@@ -1294,6 +1319,7 @@ const char* Parser<ppc64>::fileKind(const uint8_t* fileContent)
 		return NULL;
 	return "ppc64";
 }
+#endif
 
 //
 // used by linker is error messages to describe mismatched files
@@ -1306,20 +1332,26 @@ const char* archName(const uint8_t* fileContent)
 	if ( Parser<x86>::validFile(fileContent, true) ) {
 		return Parser<x86>::fileKind(fileContent);
 	}
+#if SUPPORT_ARCH_arm_any
 	if ( Parser<arm>::validFile(fileContent, true) ) {
 		return Parser<arm>::fileKind(fileContent);
 	}
+#endif
 #if SUPPORT_ARCH_arm64
 	if ( Parser<arm64>::validFile(fileContent, false) ) {
 		return Parser<arm64>::fileKind(fileContent);
 	}
 #endif
+#if SUPPORT_ARCH_ppc
 	if ( Parser<ppc>::validFile(fileContent, true) ) {
 		return Parser<ppc>::fileKind(fileContent);
 	}
+#endif
+#if SUPPORT_ARCH_ppc64
 	if ( Parser<ppc64>::validFile(fileContent, false) ) {
 		return Parser<ppc64>::fileKind(fileContent);
 	}
+#endif
 	return NULL;
 }
 
@@ -1356,14 +1388,18 @@ ld::dylib::File* parse(const uint8_t* fileContent, uint64_t fileLength,
 				return Parser<arm64>::parse(fileContent, fileLength, path, modTime, ordinal, opts, indirectDylib);
 			break;
 #endif
+#if SUPPORT_ARCH_ppc
 		case CPU_TYPE_POWERPC:
 			if ( Parser<ppc>::validFile(fileContent, bundleLoader) )
 				return Parser<ppc>::parse(fileContent, fileLength, path, modTime, ordinal, opts, indirectDylib);
 			break;
+#endif
+#if SUPPORT_ARCH_ppc64
 		case CPU_TYPE_POWERPC64:
 			if ( Parser<ppc64>::validFile(fileContent, bundleLoader) )
 				return Parser<ppc64>::parse(fileContent, fileLength, path, modTime, ordinal, opts, indirectDylib);
 			break;
+#endif
 	}
 	return NULL;
 }
