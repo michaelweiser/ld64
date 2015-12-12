@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2011 Apple Inc. All rights reserved.
+# Copyright (c) 2014 Apple Inc. All rights reserved.
 #
 # @APPLE_LICENSE_HEADER_START@
 # 
@@ -24,14 +24,25 @@ TESTROOT = ../..
 include ${TESTROOT}/include/common.makefile
 
 #
-# <rdar://problem/9452006> assert when wacky section order and label at end of section
+# Sanity check -dead_strip does not remove initializers and terminators
 #
+
 
 run: all
 
 all:
-	${CC} ${CCFLAGS} foo.s -c -o foo.o
-	${PASS_IFF} ${LD} -r foo.o -arch ${ARCH} -o foo-r.o 
+	${CC} ${CCFLAGS} main.c -c -o main.o
+	${CC} ${CCFLAGS} main.o -dead_strip -o main
+	${FAIL_IF_BAD_MACHO} main
+	nm main | grep _aa | ${FAIL_IF_EMPTY}
+	nm main | grep _aaInfo | ${FAIL_IF_EMPTY}
+	nm main | grep _bb | ${FAIL_IF_STDIN}
+	${LD} -r main.o -o main-r.o
+	${CC} ${CCFLAGS} main-r.o -dead_strip -o main-r
+	nm main-r | grep _aa | ${FAIL_IF_EMPTY}
+	nm main-r | grep _aaInfo | ${FAIL_IF_EMPTY}
+	nm main-r | grep _bb | ${FAIL_IF_STDIN}
+	${PASS_IFF_GOOD_MACHO} main-r
 
 clean:
-	rm -f foo.o foo-r.o
+	rm -rf main.o main main-r.o main-r

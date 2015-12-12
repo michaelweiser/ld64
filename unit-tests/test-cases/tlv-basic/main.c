@@ -22,6 +22,8 @@
  * @APPLE_LICENSE_HEADER_END@
  */
 
+#include <stdio.h>
+
 // work around until compiler supports __thread
 extern int* get_a();		
 extern int* get_b();
@@ -30,10 +32,19 @@ extern int* get_d();
 
 int main()
 {
-	get_a();
-	get_b();
-	get_c();
-	get_d();
+	int* p;
+  p = get_a();
+  printf("&a=%p, a=%d\n", p, *p);
+
+	p = get_b();
+  printf("&b=%p, b=%d\n", p, *p);
+
+	p = get_c();
+  printf("&c=%p, c=%d\n", p, *p);
+
+	p = get_d();
+  printf("&d=%p, e=%d\n", p, *p);
+
 	return 0;
 }
 

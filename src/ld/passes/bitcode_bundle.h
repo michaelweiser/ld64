@@ -1,16 +1,16 @@
-/* -*- mode: C++; c-basic-offset: 4; tab-width: 4 -*- 
+/* -*- mode: C++; c-basic-offset: 4; tab-width: 4 -*-
  *
- * Copyright (c) 2011 Apple Inc. All rights reserved.
+ * Copyright (c) 2010 Apple Inc. All rights reserved.
  *
  * @APPLE_LICENSE_HEADER_START@
- * 
+ *
  * This file contains Original Code and/or Modifications of Original Code
  * as defined in and that are subject to the Apple Public Source License
  * Version 2.0 (the 'License'). You may not use this file except in
  * compliance with the License. Please obtain a copy of the License at
  * http://www.opensource.apple.com/apsl/ and read it before using this
  * file.
- * 
+ *
  * The Original Code and all software distributed under the License are
  * distributed on an 'AS IS' basis, WITHOUT WARRANTY OF ANY KIND, EITHER
  * EXPRESS OR IMPLIED, AND APPLE HEREBY DISCLAIMS ALL SUCH WARRANTIES,
@@ -18,24 +18,26 @@
  * FITNESS FOR A PARTICULAR PURPOSE, QUIET ENJOYMENT OR NON-INFRINGEMENT.
  * Please see the License for the specific language governing rights and
  * limitations under the License.
- * 
+ *
  * @APPLE_LICENSE_HEADER_END@
  */
-#include <stdio.h>
 
-static int a[2000];
-int b[2000];
+#ifndef _BITCODE_BUNDLE_H_
+#define _BITCODE_BUNDLE_H_
 
-extern void* zerofill_start  __asm("section$start$__DATA$__zerofill");
-extern void* zerofill__end   __asm("section$end$__DATA$__zerofill");
+#include "Options.h"
+#include "ld.hpp"
 
-void* start = &zerofill_start;
-void* end = &zerofill__end;
+namespace ld {
+namespace passes {
+namespace bitcode_bundle {
 
-int main()
-{
-	a[0] = 0;
-	b[0] = 0;
-	return 0;
-}
+// called by linker to write bitcode bundle into a mach-o section
+extern void doPass(const Options& opts, ld::Internal& internal);
 
+
+} // namespace bitcode_bundle
+} // namespace passes
+} // namespace ld
+
+#endif /* defined(_BITCODE_BUNDLE_H_) */
