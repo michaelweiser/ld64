@@ -5371,7 +5371,7 @@ void Options::checkIllegalOptionCombinations()
 				else {
 					if ( fStackSize > 0x20000000 )
 						throw "-stack_size must be <= 512MB";
-					if ( fStackAddr == 0 ) {
+					if ( fStackAddr == 0 )
 						fStackAddr = 0x120000000;
 				}
 				break;
@@ -5381,7 +5381,6 @@ void Options::checkIllegalOptionCombinations()
 					throw "-stack_size must be <= 512MB";
 				if ( fStackAddr == 0 )
 					fStackAddr = 0x120000000;
-				}
 				break;
 #endif
 		}
